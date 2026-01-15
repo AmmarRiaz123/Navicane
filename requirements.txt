@@ -1,0 +1,22 @@
+# Smart Cane System - Python Dependencies
+# Installation: pip3 install -r requirements.txt
+
+# GPIO Control for Raspberry Pi
+RPi.GPIO==0.7.1
+
+# Computer Vision and Image Processing
+opencv-python==4.8.1.78
+numpy==1.24.3
+
+# Optional: If using picamera2 instead of OpenCV for camera
+picamera2==0.3.12
+
+# Note: The following are system packages and should be installed via apt:
+ espeak 
+ python3-opencv 
+# 
+# Install with:
+# sudo apt-get install -y python3-opencv espeak
+#
+# If you encounter issues with opencv-python on Raspberry Pi,
+# use the system package instead and remove opencv-python from this file.

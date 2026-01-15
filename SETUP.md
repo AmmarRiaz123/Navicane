@@ -28,6 +28,27 @@ Connect Raspberry Pi Camera Module v1.3 to CSI port on Raspberry Pi.
 
 ## Software Installation
 
+### Quick Install (Recommended)
+
+```bash
+# Clone or download the repository
+cd /home/pi
+git clone https://github.com/AmmarRiaz123/Navicane.git
+cd Navicane
+
+# Run installation script
+sudo bash install.sh
+```
+
+The script will automatically:
+- Install all system dependencies
+- Install Python packages from requirements.txt
+- Enable camera interface
+- Download AI model
+- Configure auto-start service
+
+### Manual Installation
+
 ### 1. Update System
 
 ```bash
@@ -44,21 +65,28 @@ sudo raspi-config
 sudo reboot
 ```
 
-### 3. Install Dependencies
+### 3. Install System Dependencies
 
 ```bash
-# Python libraries
-sudo apt-get install -y python3-pip python3-opencv
-sudo pip3 install numpy
-
-# Audio/Speech
-sudo apt-get install -y espeak
-
-# GPIO
-sudo pip3 install RPi.GPIO
+# System packages
+sudo apt-get install -y python3-pip python3-opencv espeak git
 ```
 
-### 4. Download Object Detection Model
+### 4. Install Python Dependencies
+
+```bash
+cd /home/pi/smart_cane
+
+# Install from requirements.txt
+pip3 install -r requirements.txt
+
+# Or install manually
+pip3 install RPi.GPIO==0.7.1 numpy==1.24.3 opencv-python==4.8.1.78
+```
+
+**Note**: On Raspberry Pi, it's recommended to use the system's `python3-opencv` package instead of pip's `opencv-python` for better performance. If you encounter issues, remove opencv-python from requirements.txt and rely on the apt-installed version.
+
+### 5. Download Object Detection Model
 
 ```bash
 # Create models directory
@@ -70,17 +98,17 @@ wget https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNet
 wget https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel
 ```
 
-### 5. Install Smart Cane Code
+### 6. Install Smart Cane Code
 
 ```bash
 # Copy all Python files to /home/pi/smart_cane
 mkdir -p /home/pi/smart_cane
 cd /home/pi/smart_cane
 
-# Copy: main.py, camera.py, ultrasonic.py, vibration.py, speech.py, config.py, utils.py
+# Copy: main.py, camera.py, ultrasonic.py, vibration.py, speech.py, config.py, utils.py, requirements.txt
 ```
 
-### 6. Test Components
+### 7. Test Components
 
 Test each module individually:
 
@@ -201,6 +229,20 @@ alsamixer
 # Set default audio output
 sudo raspi-config
 # System Options > Audio > Select output
+```
+
+### Python Package Issues
+
+```bash
+# If opencv-python fails to install on Raspberry Pi
+# Remove it from requirements.txt and use system package
+sudo apt-get install -y python3-opencv
+
+# Verify installation
+python3 -c "import cv2; print(cv2.__version__)"
+
+# If RPi.GPIO has permission issues
+sudo pip3 install RPi.GPIO
 ```
 
 ### Model Download Issues

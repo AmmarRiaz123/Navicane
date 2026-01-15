@@ -28,13 +28,21 @@ echo "Updating system..."
 apt-get update -y
 apt-get upgrade -y
 
-# Install dependencies
-echo "Installing dependencies..."
+# Install system dependencies
+echo "Installing system dependencies..."
 apt-get install -y python3-pip python3-opencv espeak git
 
-# Install Python packages
-echo "Installing Python packages..."
-pip3 install RPi.GPIO numpy
+# Install Python packages from requirements.txt
+echo "Installing Python packages from requirements.txt..."
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+    pip3 install -r "$SCRIPT_DIR/requirements.txt"
+else
+    # Fallback to manual installation
+    echo "requirements.txt not found, installing manually..."
+    pip3 install RPi.GPIO numpy
+fi
 
 # Enable camera
 echo "Enabling camera interface..."
@@ -47,7 +55,6 @@ mkdir -p "$INSTALL_DIR"
 mkdir -p "$USER_HOME/models"
 
 # Copy files (assumes script is in source directory)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "Copying files from $SCRIPT_DIR"
 
 cp "$SCRIPT_DIR/main.py" "$INSTALL_DIR/"
@@ -57,6 +64,11 @@ cp "$SCRIPT_DIR/vibration.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/speech.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/config.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/utils.py" "$INSTALL_DIR/"
+
+# Copy requirements.txt for reference
+if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+    cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
+fi
 
 # Set ownership
 chown -R $ACTUAL_USER:$ACTUAL_USER "$INSTALL_DIR"
