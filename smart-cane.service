@@ -1,0 +1,27 @@
+[Unit]
+Description=Smart Cane System for Blind Users
+Documentation=https://github.com/AmmarRiaz123/Navicane
+After=multi-user.target network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/smart_cane
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /home/pi/smart_cane/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/smart_cane.log
+StandardError=append:/home/pi/smart_cane.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target
