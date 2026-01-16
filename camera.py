@@ -1,18 +1,28 @@
 """
 Camera vision module with object detection
 Uses OpenCV DNN with MobileNet SSD
+Supports both OpenCV VideoCapture and picamera2
 """
 
 import cv2
 import numpy as np
 from config import (
-    CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS,
+    CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS, CAMERA_BACKEND,
     MODEL_PATH, PROTOTXT_PATH, CONFIDENCE_THRESHOLD,
     PRIORITY_OBJECTS, CENTER_REGION_START, CENTER_REGION_END
 )
 from utils import setup_logger, retry_on_failure
 
 logger = setup_logger('camera')
+
+# Try to import picamera2
+try:
+    from picamera2 import Picamera2
+    PICAMERA2_AVAILABLE = True
+    logger.info("picamera2 library available")
+except ImportError:
+    PICAMERA2_AVAILABLE = False
+    logger.warning("picamera2 not available, will use OpenCV only")
 
 # MobileNet SSD class labels
 CLASSES = [
@@ -34,10 +44,37 @@ class ObjectDetector:
         """Load the pre-trained model"""
         try:
             logger.info(f"Loading model from {MODEL_PATH}")
-            self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+            
+            # Auto-detect model format
+            if MODEL_PATH.endswith('.onnx'):
+                logger.info("Detected ONNX format")
+                self.net = cv2.dnn.readNetFromONNX(MODEL_PATH)
+            elif MODEL_PATH.endswith('.caffemodel'):
+                logger.info("Detected Caffe format")
+                self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+            elif MODEL_PATH.endswith('.pb'):
+                logger.info("Detected TensorFlow format")
+                self.net = cv2.dnn.readNetFromTensorflow(MODEL_PATH)
+            elif MODEL_PATH.endswith('.weights'):
+                logger.info("Detected Darknet format")
+                cfg_path = MODEL_PATH.replace('.weights', '.cfg')
+                self.net = cv2.dnn.readNetFromDarknet(cfg_path, MODEL_PATH)
+            else:
+                # Default to Caffe
+                logger.info("Using Caffe format (default)")
+                self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+            
             logger.info("Model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
+            logger.error("=" * 60)
+            logger.error("MODEL LOADING FAILED")
+            logger.error("=" * 60)
+            logger.error("Possible solutions:")
+            logger.error("1. Download model using: bash download_models.sh")
+            logger.error("2. Check MODEL_PATH in config.py")
+            logger.error("3. See ALTERNATIVE_MODELS.md for other options")
+            logger.error("=" * 60)
             raise
     
     def detect(self, frame):
@@ -94,44 +131,127 @@ class CameraManager:
     
     def __init__(self):
         self.cap = None
+        self.picam2 = None
+        self.backend = CAMERA_BACKEND
         self.detector = ObjectDetector()
         self.frame_count = 0
+        
+        # Auto-fallback if picamera2 requested but not available
+        if self.backend == 'picamera2' and not PICAMERA2_AVAILABLE:
+            logger.warning("picamera2 requested but not available, falling back to opencv")
+            self.backend = 'opencv'
+        
         self.open_camera()
     
     @retry_on_failure(max_attempts=5, delay=1)
     def open_camera(self):
         """Open camera with retry logic"""
         try:
-            logger.info(f"Opening camera {CAMERA_INDEX}")
-            self.cap = cv2.VideoCapture(CAMERA_INDEX)
-            
-            if not self.cap.isOpened():
-                raise Exception("Failed to open camera")
-            
-            # Set camera properties
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-            self.cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-            
-            logger.info("Camera opened successfully")
-            
+            if self.backend == 'picamera2':
+                self._open_picamera2()
+            else:
+                self._open_opencv()
+                
         except Exception as e:
             logger.error(f"Camera error: {e}")
             raise
     
+    def _open_picamera2(self):
+        """Open camera using picamera2 (libcamera backend)"""
+        logger.info("Opening camera with picamera2 (libcamera)")
+        
+        self.picam2 = Picamera2()
+        
+        # Configure camera
+        config = self.picam2.create_preview_configuration(
+            main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": "RGB888"}
+        )
+        self.picam2.configure(config)
+        
+        # Start camera
+        self.picam2.start()
+        
+        # Wait for camera to warm up
+        import time
+        time.sleep(2)
+        
+        # Test capture
+        test_frame = self.picam2.capture_array()
+        if test_frame is None or test_frame.size == 0:
+            raise Exception("picamera2 cannot capture frames")
+        
+        logger.info(f"Camera opened with picamera2: {CAMERA_WIDTH}x{CAMERA_HEIGHT}")
+    
+    def _open_opencv(self):
+        """Open camera using OpenCV VideoCapture (V4L2 backend)"""
+        logger.info(f"Opening camera {CAMERA_INDEX} with OpenCV")
+        self.cap = cv2.VideoCapture(CAMERA_INDEX)
+        
+        if not self.cap.isOpened():
+            # Provide detailed error message
+            logger.error("=" * 60)
+            logger.error("CAMERA FAILED TO OPEN WITH OPENCV")
+            logger.error("=" * 60)
+            logger.error("Possible causes:")
+            logger.error("1. Camera not accessible via V4L2 (/dev/video*)")
+            logger.error("2. Try using picamera2 backend instead")
+            logger.error("   Set CAMERA_BACKEND = 'picamera2' in config.py")
+            logger.error("3. Install: sudo apt install python3-picamera2")
+            logger.error("")
+            logger.error("Check available devices:")
+            logger.error("  ls -l /dev/video*")
+            logger.error("=" * 60)
+            raise Exception("Failed to open camera with OpenCV")
+        
+        # Set camera properties
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+        self.cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+        
+        # Verify camera is actually working
+        ret, test_frame = self.cap.read()
+        if not ret or test_frame is None:
+            logger.error("Camera opened but cannot read frames")
+            raise Exception("Camera cannot capture frames")
+        
+        logger.info(f"Camera opened with OpenCV: {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FPS}fps")
+    
     def read_frame(self):
         """Read a frame from camera"""
-        if self.cap is None or not self.cap.isOpened():
-            self.open_camera()
+        if self.backend == 'picamera2':
+            if self.picam2 is None:
+                self.open_camera()
+            
+            try:
+                # Capture frame from picamera2
+                frame = self.picam2.capture_array()
+                
+                if frame is None:
+                    logger.warning("Failed to read frame from picamera2")
+                    return None
+                
+                # picamera2 returns RGB, OpenCV expects BGR
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                
+                self.frame_count += 1
+                return frame
+                
+            except Exception as e:
+                logger.error(f"Error reading frame from picamera2: {e}")
+                return None
         
-        ret, frame = self.cap.read()
-        
-        if not ret:
-            logger.warning("Failed to read frame")
-            return None
-        
-        self.frame_count += 1
-        return frame
+        else:  # opencv backend
+            if self.cap is None or not self.cap.isOpened():
+                self.open_camera()
+            
+            ret, frame = self.cap.read()
+            
+            if not ret:
+                logger.warning("Failed to read frame from OpenCV")
+                return None
+            
+            self.frame_count += 1
+            return frame
     
     def detect_objects(self, frame=None):
         """
@@ -195,8 +315,17 @@ class CameraManager:
     
     def cleanup(self):
         """Release camera resources"""
+        if self.backend == 'picamera2' and self.picam2 is not None:
+            try:
+                self.picam2.stop()
+                self.picam2.close()
+                logger.info("picamera2 cleaned up")
+            except:
+                pass
+        
         if self.cap is not None:
             self.cap.release()
+        
         cv2.destroyAllWindows()
         logger.info("Camera cleaned up")
 

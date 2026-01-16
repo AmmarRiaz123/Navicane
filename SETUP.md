@@ -77,23 +77,16 @@ sudo apt install -y \
     python3-pip \
     python3-dev \
     python3-rpi.gpio \
+    python3-picamera2 \
     espeak \
     libcamera-apps \
     git
 ```
 
-**Why use apt instead of pip?**
-
-On Raspberry Pi OS 64-bit (arm64):
-- ❌ `pip install opencv-python` → Fails with compilation errors
-- ❌ `pip install numpy` → Takes hours and may fail
-- ✅ `apt install python3-opencv python3-numpy` → Works instantly
-
-The apt packages are:
-- Pre-compiled for Raspberry Pi ARM architecture
-- Optimized for performance
-- Tested and stable
-- Officially supported
+**Important for Raspberry Pi Camera:**
+- `python3-picamera2` is the modern interface for Pi Camera modules
+- Works with the new camera stack (rpicam-hello, rpicam-vid, etc.)
+- Required if you see `rpicam-hello` working but OpenCV fails
 
 ### 3. Verify System Packages
 
@@ -104,8 +97,12 @@ python3 -c "import cv2; print('OpenCV version:', cv2.__version__)"
 python3 -c "import numpy; print('NumPy version:', numpy.__version__)"
 # Test GPIO
 python3 -c "import RPi.GPIO; print('GPIO: OK')"
+# Test picamera2 (REQUIRED for Pi Camera)
+python3 -c "from picamera2 import Picamera2; print('picamera2: OK')"
 # Test espeak
 espeak "System check successful"
+# Test camera hardware
+rpicam-hello -t 3000
 ```
 
 All commands should execute without errors.
@@ -142,12 +139,23 @@ pip3 install -r requirements.txt
 mkdir -p /home/pi/models
 cd /home/pi/models
 
-# Download MobileNet SSD model
-wget https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt
-wget https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel
+# Download MobileNet SSD v2 model (Caffe format)
+# Option 1: MobileNet SSD v2 (Recommended)
+wget https://github.com/djmv/MobilNet-SSD_RealSense/raw/master/mobilenet_iter_73000.caffemodel -O MobileNetSSD_deploy.caffemodel
+wget https://raw.githubusercontent.com/djmv/MobilNet-SSD_RealSense/master/MobileNetSSD_deploy.prototxt
+
+# Option 2: Alternative - MobileNet SSD v1 (if above fails)
+wget https://raw.githubusercontent.com/PINTO0309/MobileNet-SSD-RealSense/master/caffemodel/MobileNetSSD/MobileNetSSD_deploy.prototxt
+wget https://raw.githubusercontent.com/PINTO0309/MobileNet-SSD-RealSense/master/caffemodel/MobileNetSSD/MobileNetSSD_deploy.caffemodel
+
+# Option 3: Google Drive backup (use gdown)
+pip3 install gdown --break-system-packages
+gdown 1qSGcBHSBxzOLcKLrzk7BPYF7lEpQGJsB -O MobileNetSSD_deploy.caffemodel
+gdown 1MuBB4eJkdlQh6QIg5F2GBfKGc9vUG2jc -O MobileNetSSD_deploy.prototxt
 
 # Verify downloads
 ls -lh
+# Should show two files around 23MB (caffemodel) and 30KB (prototxt)
 ```
 
 ### 7. Install Smart Cane Code

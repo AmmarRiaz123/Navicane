@@ -1,0 +1,19 @@
+# Quick Model Download Commands
+
+# If wget works:
+mkdir -p ~/models && cd ~/models && wget https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx -O mobilenet_ssd.onnx
+
+# If curl works better:
+mkdir -p ~/models && cd ~/models && curl -L https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx -o mobilenet_ssd.onnx
+
+# Using git (slower but works on restricted networks):
+cd ~ && git clone --depth 1 --filter=blob:none --sparse https://github.com/opencv/opencv_zoo.git && cd opencv_zoo && git sparse-checkout set models/object_detection_mobilenet && cp models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx ~/models/mobilenet_ssd.onnx
+
+# After download, update config:
+nano ~/Navicane/config.py
+# Change these lines:
+# MODEL_PATH = '/home/pi/models/mobilenet_ssd.onnx'
+# PROTOTXT_PATH = ''
+
+# Test:
+cd ~/Navicane && python3 camera.py

@@ -98,25 +98,53 @@ chown -R $ACTUAL_USER:$ACTUAL_USER "$USER_HOME/models"
 echo "Downloading object detection model..."
 cd "$USER_HOME/models"
 
-if [ ! -f "MobileNetSSD_deploy.prototxt" ]; then
-    echo "  Downloading prototxt..."
-    sudo -u $ACTUAL_USER wget -q --show-progress \
-        https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt || \
-        echo "  ⚠ Prototxt download failed, download manually"
+# Try OpenCV Zoo ONNX model first (most reliable)
+echo "  Trying OpenCV Zoo ONNX model..."
+if sudo -u $ACTUAL_USER wget -q --show-progress \
+    https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx \
+    -O mobilenet_ssd.onnx 2>/dev/null; then
+    
+    echo "  ✓ ONNX model downloaded successfully"
+    
+    # Update config to use ONNX model
+    sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/mobilenet_ssd.onnx'|g" "$INSTALL_DIR/config.py"
+    sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = ''|g" "$INSTALL_DIR/config.py"
+    
+    SUCCESS=1
+else
+    echo "  ⚠ ONNX download failed"
+    SUCCESS=0
 fi
 
-if [ ! -f "MobileNetSSD_deploy.caffemodel" ]; then
-    echo "  Downloading caffemodel (this may take a while)..."
-    sudo -u $ACTUAL_USER wget -q --show-progress \
-        https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel || \
-        echo "  ⚠ Caffemodel download failed, download manually"
+# Fallback: Try YOLOv4-tiny
+if [ $SUCCESS -eq 0 ]; then
+    echo "  Trying YOLOv4-tiny as fallback..."
+    if sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4-tiny.weights 2>/dev/null && \
+       sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4-tiny.cfg 2>/dev/null; then
+        
+        echo "  ✓ YOLOv4-tiny downloaded successfully"
+        
+        # Update config to use YOLO model
+        sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/yolov4-tiny.weights'|g" "$INSTALL_DIR/config.py"
+        sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = '$USER_HOME/models/yolov4-tiny.cfg'|g" "$INSTALL_DIR/config.py"
+        
+        SUCCESS=1
+    fi
 fi
 
 # Verify downloads
-if [ -f "MobileNetSSD_deploy.prototxt" ] && [ -f "MobileNetSSD_deploy.caffemodel" ]; then
+if [ $SUCCESS -eq 1 ]; then
     echo "  ✓ Model files downloaded successfully"
+    ls -lh "$USER_HOME/models"
 else
-    echo "  ⚠ Model files incomplete, object detection may not work"
+    echo "  ⚠ All download attempts failed"
+    echo ""
+    echo "  Please download manually:"
+    echo "  1. Run: bash download_models.sh"
+    echo "  2. Or download from: https://github.com/opencv/opencv_zoo"
+    echo "  3. Place in: $USER_HOME/models/"
 fi
 
 # Update config with correct paths
@@ -173,23 +201,26 @@ echo
 echo "1. Connect hardware (sensors, motors, camera)"
 echo "   - See WIRING.md for pin connections"
 echo
-echo "2. Test individual components:"
+echo "2. If model download failed, run:"
+echo "   bash download_models.sh"
+echo
+echo "3. Test individual components:"
 echo "   cd $INSTALL_DIR"
 echo "   python3 ultrasonic.py"
 echo "   python3 vibration.py"
 echo "   python3 speech.py"
 echo "   python3 camera.py"
 echo
-echo "3. Test complete system:"
+echo "4. Test complete system:"
 echo "   python3 main.py"
 echo
-echo "4. Start auto-start service:"
+echo "5. Start auto-start service:"
 echo "   sudo systemctl start smart-cane.service"
 echo
-echo "5. Check service status:"
+echo "6. Check service status:"
 echo "   sudo systemctl status smart-cane.service"
 echo
-echo "6. View logs:"
+echo "7. View logs:"
 echo "   tail -f $INSTALL_DIR/smart_cane.log"
 echo
 echo "⚠ IMPORTANT: A reboot is recommended to apply all changes"

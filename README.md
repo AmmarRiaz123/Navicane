@@ -121,13 +121,50 @@ sudo reboot
 
 ### Step 6: Download AI Model
 
-```bash
-mkdir -p /home/pi/models
-cd /home/pi/models
+⚠️ **This is a critical step!** The camera won't work without the AI model.
 
-# Download MobileNet SSD model
-wget https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt
-wget https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel
+**Option 1: Automatic download (recommended)**
+
+```bash
+cd ~/Navicane
+bash download_models.sh
+```
+
+**Option 2: One-line command**
+
+```bash
+mkdir -p ~/models && cd ~/models && wget https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx -O mobilenet_ssd.onnx
+```
+
+**Option 3: Using curl (if wget fails)**
+
+```bash
+mkdir -p ~/models && cd ~/models && curl -L https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx -o mobilenet_ssd.onnx
+```
+
+**Option 4: Manual download**
+
+1. Open this link in your browser: https://github.com/opencv/opencv_zoo/tree/master/models/object_detection_mobilenet
+2. Click on `object_detection_mobilenet_2022apr.onnx`
+3. Click the "Download" button
+4. Save the file to `/home/pi/models/mobilenet_ssd.onnx`
+
+**Verify download:**
+```bash
+ls -lh ~/models/mobilenet_ssd.onnx
+# Should show a file around 9MB
+```
+
+**Update config (if not done automatically):**
+
+```bash
+nano ~/Navicane/config.py
+```
+
+Change these lines:
+```python
+MODEL_PATH = '/home/pi/models/mobilenet_ssd.onnx'
+PROTOTXT_PATH = ''  # Leave empty for ONNX models
 ```
 
 ### Step 7: Hardware Setup
