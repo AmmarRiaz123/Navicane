@@ -8,6 +8,28 @@ This project is designed for **Raspberry Pi OS 64-bit (Debian Bookworm/Trixie)**
 
 ---
 
+## ⚠️ Important: Camera System Constraint
+
+**CRITICAL:** This Raspberry Pi system has a hardware/software constraint:
+
+✅ **WORKS:** rpicam-* CLI commands (rpicam-hello, rpicam-still, rpicam-vid)  
+❌ **DOES NOT WORK:** Picamera2, cv2.VideoCapture, libcamera Python bindings
+
+The camera can **ONLY** be accessed via `rpicam-*` command-line tools. All camera functionality in this project uses `subprocess` calls to `rpicam-still` to capture frames, which are then processed by OpenCV.
+
+**Why this limitation exists:**
+- Specific Raspberry Pi OS build
+- libcamera version incompatibility
+- Python bindings not functional
+- Direct device access hangs or fails
+
+**How this project handles it:**
+1. Camera capture: `rpicam-still` via subprocess
+2. Frame processing: OpenCV reads saved images
+3. Detection: Standard OpenCV DNN on captured frames
+
+---
+
 ## Hardware Wiring
 
 ### Ultrasonic Sensors (HC-SR04)
@@ -77,33 +99,33 @@ sudo apt install -y \
     python3-pip \
     python3-dev \
     python3-rpi.gpio \
-    python3-picamera2 \
     espeak \
     libcamera-apps \
     git
 ```
 
-**Important for Raspberry Pi Camera:**
-- `python3-picamera2` is the modern interface for Pi Camera modules
-- Works with the new camera stack (rpicam-hello, rpicam-vid, etc.)
-- Required if you see `rpicam-hello` working but OpenCV fails
+**DO NOT INSTALL:**
+- ❌ `python3-picamera2` (not functional on this system)
+- ❌ Any libcamera Python bindings
+
+**Camera access is via rpicam-* CLI tools only!**
 
 ### 3. Verify System Packages
 
 ```bash
-# Test OpenCV
+# Test OpenCV (for image processing only)
 python3 -c "import cv2; print('OpenCV version:', cv2.__version__)"
 # Test NumPy
 python3 -c "import numpy; print('NumPy version:', numpy.__version__)"
 # Test GPIO
 python3 -c "import RPi.GPIO; print('GPIO: OK')"
-# Test picamera2 (REQUIRED for Pi Camera)
-python3 -c "from picamera2 import Picamera2; print('picamera2: OK')"
+# Test rpicam (CRITICAL for camera)
+rpicam-hello -t 3000
 # Test espeak
 espeak "System check successful"
-# Test camera hardware
-rpicam-hello -t 3000
 ```
+
+**Note:** We do NOT test Picamera2 because it doesn't work on this system.
 
 All commands should execute without errors.
 

@@ -11,13 +11,20 @@
 #
 #   sudo apt update
 #   sudo apt install -y python3-opencv python3-numpy python3-pip espeak \
-#                       python3-dev python3-rpi.gpio python3-picamera2 \
-#                       libcamera-apps
+#                       python3-dev python3-rpi.gpio libcamera-apps
 #
 # WHY: On arm64 Raspberry Pi OS, heavy packages like opencv-python and numpy
 # often fail to build from source via pip due to compilation errors.
 # The apt versions are precompiled, optimized, and tested for Raspberry Pi.
 #
+# ============================================================================
+# CAMERA CONSTRAINT:
+# This system ONLY works with rpicam-* CLI tools (rpicam-hello, rpicam-still)
+# - Picamera2 does NOT work
+# - cv2.VideoCapture does NOT work
+# - libcamera Python bindings do NOT work
+# 
+# Camera access is via subprocess calls to rpicam-* commands only!
 # ============================================================================
 
 # GPIO Control for Raspberry Pi
@@ -30,9 +37,13 @@ RPi.GPIO>=0.7.1
 # ============================================================================
 # Install these using apt before running pip:
 #
-# opencv-python  -> USE: sudo apt install python3-opencv
+# opencv-python  -> USE: sudo apt install python3-opencv (for image processing ONLY)
 # numpy          -> USE: sudo apt install python3-numpy
-# picamera2      -> USE: sudo apt install python3-picamera2 (REQUIRED for Pi Camera)
+# libcamera-apps -> USE: sudo apt install libcamera-apps (for rpicam-* commands)
+#
+# DO NOT INSTALL:
+# - python3-picamera2 (does not work on this system)
+# - Any libcamera Python bindings (not functional)
 #
 # These packages are pre-built for arm64 and integrate with system libraries.
 # Installing them via pip will likely fail or cause conflicts.

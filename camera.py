@@ -1,28 +1,25 @@
 """
 Camera vision module with object detection
-Uses OpenCV DNN with MobileNet SSD
-Supports both OpenCV VideoCapture and picamera2
+Uses rpicam-* CLI commands (subprocess) + OpenCV DNN for processing
+IMPORTANT: This system CANNOT use Picamera2 or cv2.VideoCapture!
 """
 
 import cv2
 import numpy as np
+import subprocess
+import time
+import tempfile
+import os
+from pathlib import Path
 from config import (
-    CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS, CAMERA_BACKEND,
+    CAMERA_WIDTH, CAMERA_HEIGHT,
     MODEL_PATH, PROTOTXT_PATH, CONFIDENCE_THRESHOLD,
-    PRIORITY_OBJECTS, CENTER_REGION_START, CENTER_REGION_END
+    PRIORITY_OBJECTS, CENTER_REGION_START, CENTER_REGION_END,
+    RPICAM_CAPTURE_INTERVAL
 )
 from utils import setup_logger, retry_on_failure
 
 logger = setup_logger('camera')
-
-# Try to import picamera2
-try:
-    from picamera2 import Picamera2
-    PICAMERA2_AVAILABLE = True
-    logger.info("picamera2 library available")
-except ImportError:
-    PICAMERA2_AVAILABLE = False
-    logger.warning("picamera2 not available, will use OpenCV only")
 
 # MobileNet SSD class labels (for Caffe models)
 CLASSES = [
@@ -37,8 +34,8 @@ class ObjectDetector:
     
     def __init__(self):
         self.net = None
-        self.classes = CLASSES  # Default classes
-        self.model_type = None  # 'caffe', 'onnx', 'darknet', etc.
+        self.classes = CLASSES
+        self.model_type = None
         self.load_model()
     
     @retry_on_failure(max_attempts=3, delay=2)
@@ -74,12 +71,11 @@ class ObjectDetector:
                 try:
                     with open(coco_names_path, 'r') as f:
                         self.classes = [line.strip() for line in f.readlines()]
-                    logger.info(f"Loaded {len(self.classes)} class names from {coco_names_path}")
+                    logger.info(f"Loaded {len(self.classes)} class names")
                 except Exception as e:
-                    logger.warning(f"Could not load COCO names: {e}, using default classes")
+                    logger.warning(f"Could not load COCO names: {e}")
                 
             else:
-                # Default to Caffe
                 logger.info("Using Caffe format (default)")
                 self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
                 self.model_type = 'caffe'
@@ -88,36 +84,22 @@ class ObjectDetector:
             
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            logger.error("=" * 60)
-            logger.error("MODEL LOADING FAILED")
-            logger.error("=" * 60)
-            logger.error("Possible solutions:")
-            logger.error("1. Download model using: bash download_models.sh")
-            logger.error("2. Check MODEL_PATH in config.py")
-            logger.error("3. See ALTERNATIVE_MODELS.md for other options")
-            logger.error("=" * 60)
             raise
     
     def detect(self, frame):
-        """
-        Detect objects in frame
-        Returns: list of (class_name, confidence, box) tuples
-        box = (startX, startY, endX, endY)
-        """
+        """Detect objects in frame"""
         if self.net is None:
             return []
         
         (h, w) = frame.shape[:2]
         
-        # Use different detection methods based on model type
         if self.model_type == 'darknet':
             return self._detect_yolo(frame, w, h)
         else:
             return self._detect_ssd(frame, w, h)
     
     def _detect_ssd(self, frame, w, h):
-        """Detection for SSD models (MobileNet, etc.)"""
-        # Prepare blob
+        """Detection for SSD models"""
         blob = cv2.dnn.blobFromImage(
             cv2.resize(frame, (300, 300)), 
             0.007843, 
@@ -125,13 +107,11 @@ class ObjectDetector:
             127.5
         )
         
-        # Run detection
         self.net.setInput(blob)
         detections = self.net.forward()
         
         results = []
         
-        # Parse detections
         for i in range(detections.shape[2]):
             confidence = detections[0, 0, i, 2]
             
@@ -143,11 +123,9 @@ class ObjectDetector:
                 
                 class_name = self.classes[idx]
                 
-                # Only report priority objects
                 if class_name not in PRIORITY_OBJECTS:
                     continue
                 
-                # Get bounding box
                 box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
                 (startX, startY, endX, endY) = box.astype("int")
                 
@@ -157,22 +135,17 @@ class ObjectDetector:
     
     def _detect_yolo(self, frame, w, h):
         """Detection for YOLO models"""
-        # Prepare blob for YOLO
         blob = cv2.dnn.blobFromImage(frame, 1/255.0, (416, 416), swapRB=True, crop=False)
         
-        # Run detection
         self.net.setInput(blob)
         
-        # Get output layer names
         layer_names = self.net.getLayerNames()
         output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
         
-        # Forward pass
         outputs = self.net.forward(output_layers)
         
         results = []
         
-        # Parse YOLO outputs
         for output in outputs:
             for detection in output:
                 scores = detection[5:]
@@ -185,11 +158,9 @@ class ObjectDetector:
                     
                     class_name = self.classes[class_id]
                     
-                    # Only report priority objects
                     if class_name not in PRIORITY_OBJECTS:
                         continue
                     
-                    # Get bounding box
                     center_x = int(detection[0] * w)
                     center_y = int(detection[1] * h)
                     width = int(detection[2] * w)
@@ -204,140 +175,100 @@ class ObjectDetector:
         
         return results
 
+
 class CameraManager:
-    """Manages camera and object detection"""
+    """Manages camera via rpicam CLI and object detection"""
     
     def __init__(self):
-        self.cap = None
-        self.picam2 = None
-        self.backend = CAMERA_BACKEND
         self.detector = ObjectDetector()
         self.frame_count = 0
+        self.temp_dir = tempfile.mkdtemp(prefix='smart_cane_')
+        logger.info(f"Using temp directory: {self.temp_dir}")
         
-        # Auto-fallback if picamera2 requested but not available
-        if self.backend == 'picamera2' and not PICAMERA2_AVAILABLE:
-            logger.warning("picamera2 requested but not available, falling back to opencv")
-            self.backend = 'opencv'
-        
-        self.open_camera()
+        # Test rpicam availability
+        self.test_camera()
     
-    @retry_on_failure(max_attempts=5, delay=1)
-    def open_camera(self):
-        """Open camera with retry logic"""
+    def test_camera(self):
+        """Test if rpicam-still works"""
         try:
-            if self.backend == 'picamera2':
-                self._open_picamera2()
+            logger.info("Testing rpicam-still availability...")
+            result = subprocess.run(
+                ['rpicam-still', '--help'],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                logger.info("✓ rpicam-still is available")
             else:
-                self._open_opencv()
-                
-        except Exception as e:
-            logger.error(f"Camera error: {e}")
+                logger.error("✗ rpicam-still failed")
+                raise Exception("rpicam-still not working")
+        except subprocess.TimeoutExpired:
+            logger.error("✗ rpicam-still timed out")
+            raise
+        except FileNotFoundError:
+            logger.error("✗ rpicam-still not found - install libcamera-apps")
             raise
     
-    def _open_picamera2(self):
-        """Open camera using picamera2 (libcamera backend)"""
-        logger.info("Opening camera with picamera2 (libcamera)")
+    def capture_frame(self, timeout=5):
+        """
+        Capture a single frame using rpicam-still
+        Returns: numpy array (BGR image) or None
+        """
+        temp_file = os.path.join(self.temp_dir, f'frame_{self.frame_count}.jpg')
         
-        self.picam2 = Picamera2()
-        
-        # Configure camera
-        config = self.picam2.create_preview_configuration(
-            main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": "RGB888"}
-        )
-        self.picam2.configure(config)
-        
-        # Start camera
-        self.picam2.start()
-        
-        # Wait for camera to warm up
-        import time
-        time.sleep(2)
-        
-        # Test capture
-        test_frame = self.picam2.capture_array()
-        if test_frame is None or test_frame.size == 0:
-            raise Exception("picamera2 cannot capture frames")
-        
-        logger.info(f"Camera opened with picamera2: {CAMERA_WIDTH}x{CAMERA_HEIGHT}")
-    
-    def _open_opencv(self):
-        """Open camera using OpenCV VideoCapture (V4L2 backend)"""
-        logger.info(f"Opening camera {CAMERA_INDEX} with OpenCV")
-        self.cap = cv2.VideoCapture(CAMERA_INDEX)
-        
-        if not self.cap.isOpened():
-            # Provide detailed error message
-            logger.error("=" * 60)
-            logger.error("CAMERA FAILED TO OPEN WITH OPENCV")
-            logger.error("=" * 60)
-            logger.error("Possible causes:")
-            logger.error("1. Camera not accessible via V4L2 (/dev/video*)")
-            logger.error("2. Try using picamera2 backend instead")
-            logger.error("   Set CAMERA_BACKEND = 'picamera2' in config.py")
-            logger.error("3. Install: sudo apt install python3-picamera2")
-            logger.error("")
-            logger.error("Check available devices:")
-            logger.error("  ls -l /dev/video*")
-            logger.error("=" * 60)
-            raise Exception("Failed to open camera with OpenCV")
-        
-        # Set camera properties
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-        self.cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-        
-        # Verify camera is actually working
-        ret, test_frame = self.cap.read()
-        if not ret or test_frame is None:
-            logger.error("Camera opened but cannot read frames")
-            raise Exception("Camera cannot capture frames")
-        
-        logger.info(f"Camera opened with OpenCV: {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FPS}fps")
-    
-    def read_frame(self):
-        """Read a frame from camera"""
-        if self.backend == 'picamera2':
-            if self.picam2 is None:
-                self.open_camera()
+        try:
+            # Capture image using rpicam-still
+            cmd = [
+                'rpicam-still',
+                '-o', temp_file,
+                '--width', str(CAMERA_WIDTH),
+                '--height', str(CAMERA_HEIGHT),
+                '--nopreview',
+                '--timeout', '1',  # Minimal timeout
+                '--immediate'  # Capture immediately
+            ]
             
-            try:
-                # Capture frame from picamera2
-                frame = self.picam2.capture_array()
-                
-                if frame is None:
-                    logger.warning("Failed to read frame from picamera2")
-                    return None
-                
-                # picamera2 returns RGB, OpenCV expects BGR
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                
-                self.frame_count += 1
-                return frame
-                
-            except Exception as e:
-                logger.error(f"Error reading frame from picamera2: {e}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"rpicam-still failed: {result.stderr}")
                 return None
-        
-        else:  # opencv backend
-            if self.cap is None or not self.cap.isOpened():
-                self.open_camera()
             
-            ret, frame = self.cap.read()
+            # Load image with OpenCV
+            frame = cv2.imread(temp_file)
             
-            if not ret:
-                logger.warning("Failed to read frame from OpenCV")
+            if frame is None:
+                logger.error(f"Failed to load image from {temp_file}")
                 return None
             
             self.frame_count += 1
+            
+            # Clean up temp file
+            try:
+                os.remove(temp_file)
+            except:
+                pass
+            
             return frame
+            
+        except subprocess.TimeoutExpired:
+            logger.error("rpicam-still timed out")
+            return None
+        except Exception as e:
+            logger.error(f"Error capturing frame: {e}")
+            return None
     
-    def detect_objects(self, frame=None):
+    def detect_objects(self):
         """
-        Detect objects in frame (or capture new frame)
+        Capture frame and detect objects
         Returns: list of (name, is_center, confidence, box) tuples
         """
-        if frame is None:
-            frame = self.read_frame()
+        frame = self.capture_frame()
         
         if frame is None:
             return []
@@ -353,7 +284,6 @@ class CameraManager:
         for class_name, confidence, box in detections:
             (startX, startY, endX, endY) = box
             
-            # Check if object center is in center region
             obj_center_x = (startX + endX) / 2
             is_center = center_start <= obj_center_x <= center_end
             
@@ -363,19 +293,17 @@ class CameraManager:
         return results
     
     def capture_frame_with_boxes(self, save_path=None):
-        """
-        Capture frame and draw detection boxes (for debugging)
-        """
-        frame = self.read_frame()
+        """Capture frame and draw detection boxes (for debugging)"""
+        frame = self.capture_frame()
+        
         if frame is None:
             return None
         
-        detections = self.detect_objects(frame)
+        detections = self.detect_objects()
         
         for class_name, is_center, confidence, box in detections:
             (startX, startY, endX, endY) = box
             
-            # Color: red if center, blue otherwise
             color = (0, 0, 255) if is_center else (255, 0, 0)
             
             cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
@@ -392,31 +320,25 @@ class CameraManager:
         return frame
     
     def cleanup(self):
-        """Release camera resources"""
-        if self.backend == 'picamera2' and self.picam2 is not None:
-            try:
-                self.picam2.stop()
-                self.picam2.close()
-                logger.info("picamera2 cleaned up")
-            except:
-                pass
-        
-        if self.cap is not None:
-            self.cap.release()
-        
-        cv2.destroyAllWindows()
-        logger.info("Camera cleaned up")
+        """Clean up temp directory"""
+        try:
+            import shutil
+            shutil.rmtree(self.temp_dir)
+            logger.info(f"Cleaned up temp directory: {self.temp_dir}")
+        except Exception as e:
+            logger.warning(f"Could not clean temp directory: {e}")
+
 
 # === STANDALONE TEST ===
 if __name__ == "__main__":
     import time
     
-    print("Testing Camera Module...")
+    print("Testing Camera Module (rpicam-based)...")
     print("Note: Model files must be downloaded first!\n")
     
-    camera = CameraManager()
-    
     try:
+        camera = CameraManager()
+        
         print("Running detection for 30 seconds...")
         print("Press Ctrl+C to stop\n")
         
@@ -430,8 +352,10 @@ if __name__ == "__main__":
                 for name, is_center, conf, box in detections:
                     loc = "AHEAD" if is_center else "side"
                     print(f"  {name} ({loc}) - {conf:.2f}")
+            else:
+                print(f"Frame {camera.frame_count}: No objects detected")
             
-            time.sleep(1)
+            time.sleep(2)  # Wait between captures
         
         # Save final frame with boxes
         print("\nSaving final frame with boxes...")
@@ -441,5 +365,10 @@ if __name__ == "__main__":
         
     except KeyboardInterrupt:
         print("\n\nStopping...")
+    except Exception as e:
+        print(f"\n\nError: {e}")
     finally:
-        camera.cleanup()
+        try:
+            camera.cleanup()
+        except:
+            pass

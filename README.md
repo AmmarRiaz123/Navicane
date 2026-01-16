@@ -39,6 +39,17 @@ This is intended to function as a **true mobility assistant**, not just a techni
 * **Raspberry Pi OS 64-bit** (Debian 12 "Bookworm" or later)
 * Python 3.11+ (comes with Raspberry Pi OS)
 * System packages: OpenCV, NumPy, espeak, GPIO libraries
+* **libcamera-apps** (for rpicam-* commands)
+
+### ⚠️ Camera System Architecture
+
+**IMPORTANT CONSTRAINT:** This system uses a unique camera architecture due to hardware/OS limitations:
+
+- ✅ **Camera Access:** `rpicam-*` CLI commands ONLY (rpicam-still, rpicam-hello)
+- ❌ **NOT Supported:** Picamera2, cv2.VideoCapture, libcamera Python bindings
+- 🔧 **How It Works:** Python calls `rpicam-still` via subprocess → captures frame to disk → OpenCV loads image → processes detection
+
+This is **NOT a workaround** - it's the only method that works on this specific Raspberry Pi build.
 
 ---
 
@@ -51,8 +62,6 @@ Flash **Raspberry Pi OS 64-bit (Full or Lite)** to your microSD card using [Rasp
 Boot your Raspberry Pi and complete the initial setup.
 
 ### Step 2: Install System Dependencies
-
-**This is critical for Raspberry Pi OS 64-bit!** Install all heavy dependencies via apt:
 
 ```bash
 sudo apt update
@@ -70,17 +79,15 @@ sudo apt install -y \
     git
 ```
 
+**DO NOT install python3-picamera2** - it does not work on this system!
+
 **Why use apt instead of pip?**
 
-On Raspberry Pi OS 64-bit (arm64), packages like `numpy` and `opencv-python` often fail to build from source via pip due to:
-- Missing ARM-specific compilation flags
-- Memory constraints during compilation
-- Incompatible wheel versions
+On Raspberry Pi OS 64-bit (arm64), packages like `numpy` and `opencv-python` often fail to build from source via pip.
 
 The apt versions are:
 - ✅ Pre-compiled for Raspberry Pi hardware
 - ✅ Optimized for ARM architecture
-- ✅ Tested and maintained by Raspberry Pi Foundation
 - ✅ Install in seconds instead of hours
 
 ### Step 3: Clone or Download Project
@@ -285,17 +292,18 @@ python3 -c "import cv2; print(cv2.__version__)"
 ### Camera Not Detected
 
 ```bash
-# Check camera status
-vcgencmd get_camera
+# Check camera status with rpicam
+rpicam-hello -t 3000
 
-# Should show: supported=1 detected=1
+# Should show camera preview for 3 seconds
 
-# Test camera
-libcamera-hello
-
-# For legacy camera:
-raspistill -o test.jpg
+# DO NOT USE these commands (they won't work):
+# - vcgencmd get_camera (shows incorrect info)
+# - libcamera-hello (may not work)
+# - raspistill (legacy, not supported)
 ```
+
+**If rpicam-hello works, your camera is fine!**
 
 ### GPIO Permission Errors
 

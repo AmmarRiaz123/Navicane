@@ -24,19 +24,17 @@ VIBRATION_MOTORS = {
 }
 
 # === CAMERA SETTINGS ===
-# Camera backend selection
-# 'opencv' - Use OpenCV VideoCapture (works with V4L2)
-# 'picamera2' - Use libcamera via picamera2 library (recommended for Pi Camera)
-CAMERA_BACKEND = 'picamera2'  # Change to 'opencv' if picamera2 not available
-
-CAMERA_INDEX = 0  # Use 0 for /dev/video0, adjust if needed
+# IMPORTANT: This system uses rpicam-* CLI commands only!
+# Picamera2, cv2.VideoCapture, and libcamera do NOT work
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
-CAMERA_FPS = 10
 
-# Camera retry settings
-CAMERA_RETRY_ATTEMPTS = 5
-CAMERA_RETRY_DELAY = 2  # seconds between retries
+# Time between camera captures (seconds)
+# Increase if CPU struggles or decrease for faster detection
+RPICAM_CAPTURE_INTERVAL = 2.0  # 2 seconds between frames
+
+# Camera timeout for rpicam-still (seconds)
+RPICAM_TIMEOUT = 5
 
 # === OBJECT DETECTION ===
 # Model paths (download instructions in setup)
@@ -61,7 +59,7 @@ SPEECH_COOLDOWN = 5.0
 
 # === LOOP TIMING ===
 ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz
-CAMERA_LOOP_DELAY = 0.5  # 500ms = 2Hz
+CAMERA_LOOP_DELAY = 2.0  # 2 seconds between captures (adjusted for rpicam)
 
 # === LOGGING ===
 LOG_FILE = '/home/pi/smart_cane.log'
