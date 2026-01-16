@@ -100,37 +100,58 @@ cd "$USER_HOME/models"
 
 # Try OpenCV Zoo ONNX model first (most reliable)
 echo "  Trying OpenCV Zoo ONNX model..."
-if sudo -u $ACTUAL_USER wget -q --show-progress \
+if sudo -u $ACTUAL_USER wget -q --show-progress --timeout=30 --tries=2 \
     https://github.com/opencv/opencv_zoo/raw/master/models/object_detection_mobilenet/object_detection_mobilenet_2022apr.onnx \
     -O mobilenet_ssd.onnx 2>/dev/null; then
     
-    echo "  ✓ ONNX model downloaded successfully"
-    
-    # Update config to use ONNX model
-    sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/mobilenet_ssd.onnx'|g" "$INSTALL_DIR/config.py"
-    sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = ''|g" "$INSTALL_DIR/config.py"
-    
-    SUCCESS=1
+    # Check if file is not empty
+    if [ -s "mobilenet_ssd.onnx" ]; then
+        echo "  ✓ ONNX model downloaded successfully"
+        
+        # Update config to use ONNX model
+        sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/mobilenet_ssd.onnx'|g" "$INSTALL_DIR/config.py"
+        sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = ''|g" "$INSTALL_DIR/config.py"
+        
+        SUCCESS=1
+    else
+        echo "  ⚠ ONNX download incomplete (0 bytes)"
+        rm -f mobilenet_ssd.onnx
+        SUCCESS=0
+    fi
 else
     echo "  ⚠ ONNX download failed"
+    rm -f mobilenet_ssd.onnx  # Remove empty file if created
     SUCCESS=0
 fi
 
 # Fallback: Try YOLOv4-tiny
 if [ $SUCCESS -eq 0 ]; then
     echo "  Trying YOLOv4-tiny as fallback..."
-    if sudo -u $ACTUAL_USER wget -q --show-progress \
+    
+    # Download weights
+    if sudo -u $ACTUAL_USER wget -q --show-progress --timeout=60 \
         https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4-tiny.weights 2>/dev/null && \
-       sudo -u $ACTUAL_USER wget -q --show-progress \
-        https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4-tiny.cfg 2>/dev/null; then
+       sudo -u $ACTUAL_USER wget -q --show-progress --timeout=30 \
+        https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4-tiny.cfg 2>/dev/null && \
+       sudo -u $ACTUAL_USER wget -q --show-progress --timeout=30 \
+        https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/coco.names 2>/dev/null; then
         
-        echo "  ✓ YOLOv4-tiny downloaded successfully"
-        
-        # Update config to use YOLO model
-        sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/yolov4-tiny.weights'|g" "$INSTALL_DIR/config.py"
-        sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = '$USER_HOME/models/yolov4-tiny.cfg'|g" "$INSTALL_DIR/config.py"
-        
-        SUCCESS=1
+        # Verify files are not empty
+        if [ -s "yolov4-tiny.weights" ] && [ -s "yolov4-tiny.cfg" ]; then
+            echo "  ✓ YOLOv4-tiny downloaded successfully"
+            
+            # Update config to use YOLO model
+            sed -i "s|MODEL_PATH = '.*'|MODEL_PATH = '$USER_HOME/models/yolov4-tiny.weights'|g" "$INSTALL_DIR/config.py"
+            sed -i "s|PROTOTXT_PATH = '.*'|PROTOTXT_PATH = '$USER_HOME/models/yolov4-tiny.cfg'|g" "$INSTALL_DIR/config.py"
+            
+            SUCCESS=1
+        else
+            echo "  ⚠ YOLOv4-tiny download incomplete"
+            SUCCESS=0
+        fi
+    else
+        echo "  ⚠ YOLOv4-tiny download failed"
+        SUCCESS=0
     fi
 fi
 

@@ -24,7 +24,7 @@ except ImportError:
     PICAMERA2_AVAILABLE = False
     logger.warning("picamera2 not available, will use OpenCV only")
 
-# MobileNet SSD class labels
+# MobileNet SSD class labels (for Caffe models)
 CLASSES = [
     "background", "aeroplane", "bicycle", "bird", "boat",
     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
@@ -33,10 +33,12 @@ CLASSES = [
 ]
 
 class ObjectDetector:
-    """Object detection using MobileNet SSD"""
+    """Object detection using MobileNet SSD or YOLO"""
     
     def __init__(self):
         self.net = None
+        self.classes = CLASSES  # Default classes
+        self.model_type = None  # 'caffe', 'onnx', 'darknet', etc.
         self.load_model()
     
     @retry_on_failure(max_attempts=3, delay=2)
@@ -49,22 +51,41 @@ class ObjectDetector:
             if MODEL_PATH.endswith('.onnx'):
                 logger.info("Detected ONNX format")
                 self.net = cv2.dnn.readNetFromONNX(MODEL_PATH)
+                self.model_type = 'onnx'
+                
             elif MODEL_PATH.endswith('.caffemodel'):
                 logger.info("Detected Caffe format")
                 self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+                self.model_type = 'caffe'
+                
             elif MODEL_PATH.endswith('.pb'):
                 logger.info("Detected TensorFlow format")
                 self.net = cv2.dnn.readNetFromTensorflow(MODEL_PATH)
+                self.model_type = 'tensorflow'
+                
             elif MODEL_PATH.endswith('.weights'):
-                logger.info("Detected Darknet format")
-                cfg_path = MODEL_PATH.replace('.weights', '.cfg')
+                logger.info("Detected Darknet (YOLO) format")
+                cfg_path = PROTOTXT_PATH if PROTOTXT_PATH else MODEL_PATH.replace('.weights', '.cfg')
                 self.net = cv2.dnn.readNetFromDarknet(cfg_path, MODEL_PATH)
+                self.model_type = 'darknet'
+                
+                # Load COCO class names for YOLO
+                coco_names_path = MODEL_PATH.replace('yolov4-tiny.weights', 'coco.names')
+                try:
+                    with open(coco_names_path, 'r') as f:
+                        self.classes = [line.strip() for line in f.readlines()]
+                    logger.info(f"Loaded {len(self.classes)} class names from {coco_names_path}")
+                except Exception as e:
+                    logger.warning(f"Could not load COCO names: {e}, using default classes")
+                
             else:
                 # Default to Caffe
                 logger.info("Using Caffe format (default)")
                 self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, MODEL_PATH)
+                self.model_type = 'caffe'
             
-            logger.info("Model loaded successfully")
+            logger.info(f"Model loaded successfully (type: {self.model_type})")
+            
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             logger.error("=" * 60)
@@ -88,6 +109,14 @@ class ObjectDetector:
         
         (h, w) = frame.shape[:2]
         
+        # Use different detection methods based on model type
+        if self.model_type == 'darknet':
+            return self._detect_yolo(frame, w, h)
+        else:
+            return self._detect_ssd(frame, w, h)
+    
+    def _detect_ssd(self, frame, w, h):
+        """Detection for SSD models (MobileNet, etc.)"""
         # Prepare blob
         blob = cv2.dnn.blobFromImage(
             cv2.resize(frame, (300, 300)), 
@@ -109,10 +138,10 @@ class ObjectDetector:
             if confidence > CONFIDENCE_THRESHOLD:
                 idx = int(detections[0, 0, i, 1])
                 
-                if idx >= len(CLASSES):
+                if idx >= len(self.classes):
                     continue
                 
-                class_name = CLASSES[idx]
+                class_name = self.classes[idx]
                 
                 # Only report priority objects
                 if class_name not in PRIORITY_OBJECTS:
@@ -123,6 +152,55 @@ class ObjectDetector:
                 (startX, startY, endX, endY) = box.astype("int")
                 
                 results.append((class_name, confidence, (startX, startY, endX, endY)))
+        
+        return results
+    
+    def _detect_yolo(self, frame, w, h):
+        """Detection for YOLO models"""
+        # Prepare blob for YOLO
+        blob = cv2.dnn.blobFromImage(frame, 1/255.0, (416, 416), swapRB=True, crop=False)
+        
+        # Run detection
+        self.net.setInput(blob)
+        
+        # Get output layer names
+        layer_names = self.net.getLayerNames()
+        output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
+        
+        # Forward pass
+        outputs = self.net.forward(output_layers)
+        
+        results = []
+        
+        # Parse YOLO outputs
+        for output in outputs:
+            for detection in output:
+                scores = detection[5:]
+                class_id = np.argmax(scores)
+                confidence = scores[class_id]
+                
+                if confidence > CONFIDENCE_THRESHOLD:
+                    if class_id >= len(self.classes):
+                        continue
+                    
+                    class_name = self.classes[class_id]
+                    
+                    # Only report priority objects
+                    if class_name not in PRIORITY_OBJECTS:
+                        continue
+                    
+                    # Get bounding box
+                    center_x = int(detection[0] * w)
+                    center_y = int(detection[1] * h)
+                    width = int(detection[2] * w)
+                    height = int(detection[3] * h)
+                    
+                    startX = int(center_x - width / 2)
+                    startY = int(center_y - height / 2)
+                    endX = int(center_x + width / 2)
+                    endY = int(center_y + height / 2)
+                    
+                    results.append((class_name, float(confidence), (startX, startY, endX, endY)))
         
         return results
 
