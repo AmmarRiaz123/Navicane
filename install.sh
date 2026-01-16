@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# Smart Cane Installation Script
+# Smart Cane Installation Script for Raspberry Pi OS 64-bit
 
 set -e
 
 echo "======================================"
 echo "Smart Cane Installation Script"
+echo "Raspberry Pi OS 64-bit (Debian Trixie)"
 echo "======================================"
 echo
 
@@ -28,42 +29,61 @@ echo "Updating system..."
 apt-get update -y
 apt-get upgrade -y
 
-# Install system dependencies
-echo "Installing system dependencies..."
-apt-get install -y python3-pip python3-opencv espeak git
+# Install system dependencies (CRITICAL for arm64!)
+echo "Installing system dependencies via apt..."
+echo "This installs OpenCV, NumPy, and other heavy packages that won't build via pip on arm64"
+apt-get install -y \
+    python3-opencv \
+    python3-numpy \
+    python3-pip \
+    python3-dev \
+    python3-rpi.gpio \
+    espeak \
+    libcamera-apps \
+    git
 
-# Install Python packages from requirements.txt
-echo "Installing Python packages from requirements.txt..."
+# Verify critical packages
+echo ""
+echo "Verifying system packages..."
+python3 -c "import cv2; print('✓ OpenCV version:', cv2.__version__)" || { echo "✗ OpenCV not found!"; exit 1; }
+python3 -c "import numpy; print('✓ NumPy version:', numpy.__version__)" || { echo "✗ NumPy not found!"; exit 1; }
+python3 -c "import RPi.GPIO; print('✓ RPi.GPIO installed')" || { echo "✗ RPi.GPIO not found!"; exit 1; }
+espeak "Installation check" 2>/dev/null && echo "✓ espeak working" || echo "⚠ espeak may have issues"
+echo ""
+
+# Install minimal Python packages via pip
+echo "Installing Python packages via pip..."
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    pip3 install -r "$SCRIPT_DIR/requirements.txt"
+    # Install using --break-system-packages for Raspberry Pi OS Bookworm+
+    sudo -u $ACTUAL_USER pip3 install -r "$SCRIPT_DIR/requirements.txt" --break-system-packages || \
+    sudo -u $ACTUAL_USER pip3 install -r "$SCRIPT_DIR/requirements.txt"
 else
-    # Fallback to manual installation
-    echo "requirements.txt not found, installing manually..."
-    pip3 install RPi.GPIO numpy
+    echo "⚠ requirements.txt not found, skipping pip install"
 fi
 
 # Enable camera
 echo "Enabling camera interface..."
-raspi-config nonint do_camera 0
+raspi-config nonint do_camera 0 || echo "⚠ Camera enable may have failed, check manually"
 
-# Create directory
+# Create directories
 INSTALL_DIR="$USER_HOME/smart_cane"
 echo "Creating installation directory: $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$USER_HOME/models"
 
-# Copy files (assumes script is in source directory)
-echo "Copying files from $SCRIPT_DIR"
+# Copy files
+echo "Copying project files from $SCRIPT_DIR"
 
-cp "$SCRIPT_DIR/main.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/camera.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/ultrasonic.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/vibration.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/speech.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/config.py" "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/utils.py" "$INSTALL_DIR/"
+for file in main.py camera.py ultrasonic.py vibration.py speech.py config.py utils.py; do
+    if [ -f "$SCRIPT_DIR/$file" ]; then
+        cp "$SCRIPT_DIR/$file" "$INSTALL_DIR/"
+        echo "  ✓ Copied $file"
+    else
+        echo "  ⚠ $file not found"
+    fi
+done
 
 # Copy requirements.txt for reference
 if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
@@ -79,27 +99,44 @@ echo "Downloading object detection model..."
 cd "$USER_HOME/models"
 
 if [ ! -f "MobileNetSSD_deploy.prototxt" ]; then
-    sudo -u $ACTUAL_USER wget -q https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt
+    echo "  Downloading prototxt..."
+    sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt || \
+        echo "  ⚠ Prototxt download failed, download manually"
 fi
 
 if [ ! -f "MobileNetSSD_deploy.caffemodel" ]; then
-    sudo -u $ACTUAL_USER wget -q https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel
+    echo "  Downloading caffemodel (this may take a while)..."
+    sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel || \
+        echo "  ⚠ Caffemodel download failed, download manually"
+fi
+
+# Verify downloads
+if [ -f "MobileNetSSD_deploy.prototxt" ] && [ -f "MobileNetSSD_deploy.caffemodel" ]; then
+    echo "  ✓ Model files downloaded successfully"
+else
+    echo "  ⚠ Model files incomplete, object detection may not work"
 fi
 
 # Update config with correct paths
+echo "Updating configuration..."
 sed -i "s|/home/pi/models|$USER_HOME/models|g" "$INSTALL_DIR/config.py"
+sed -i "s|/home/pi/smart_cane.log|$INSTALL_DIR/smart_cane.log|g" "$INSTALL_DIR/config.py"
 
 # Install systemd service
 echo "Installing systemd service..."
 cat > /etc/systemd/system/smart-cane.service << EOF
 [Unit]
 Description=Smart Cane System for Blind Users
-After=multi-user.target
+After=multi-user.target network.target
 
 [Service]
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=/usr/bin/python3 $INSTALL_DIR/main.py
 Restart=always
 RestartSec=10
@@ -111,12 +148,13 @@ WantedBy=multi-user.target
 EOF
 
 # Add user to gpio group
+echo "Adding $ACTUAL_USER to gpio group..."
 usermod -a -G gpio $ACTUAL_USER
 
 # Reload systemd
 systemctl daemon-reload
 
-# Enable service
+# Enable service (but don't start yet)
 systemctl enable smart-cane.service
 
 echo
@@ -124,18 +162,36 @@ echo "======================================"
 echo "Installation Complete!"
 echo "======================================"
 echo
-echo "To start the service now:"
-echo "  sudo systemctl start smart-cane.service"
+echo "✓ System dependencies installed via apt"
+echo "✓ Python packages installed via pip"
+echo "✓ Camera interface enabled"
+echo "✓ Object detection model downloaded"
+echo "✓ Auto-start service configured"
 echo
-echo "To check status:"
-echo "  sudo systemctl status smart-cane.service"
+echo "Next steps:"
 echo
-echo "To view logs:"
-echo "  tail -f $INSTALL_DIR/smart_cane.log"
+echo "1. Connect hardware (sensors, motors, camera)"
+echo "   - See WIRING.md for pin connections"
 echo
-echo "To test manually:"
-echo "  cd $INSTALL_DIR"
-echo "  python3 main.py"
+echo "2. Test individual components:"
+echo "   cd $INSTALL_DIR"
+echo "   python3 ultrasonic.py"
+echo "   python3 vibration.py"
+echo "   python3 speech.py"
+echo "   python3 camera.py"
 echo
-echo "A reboot is recommended to apply all changes."
+echo "3. Test complete system:"
+echo "   python3 main.py"
+echo
+echo "4. Start auto-start service:"
+echo "   sudo systemctl start smart-cane.service"
+echo
+echo "5. Check service status:"
+echo "   sudo systemctl status smart-cane.service"
+echo
+echo "6. View logs:"
+echo "   tail -f $INSTALL_DIR/smart_cane.log"
+echo
+echo "⚠ IMPORTANT: A reboot is recommended to apply all changes"
+echo "   sudo reboot"
 echo

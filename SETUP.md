@@ -1,5 +1,13 @@
 # Smart Cane Setup Guide
 
+## ⚠️ Important: Raspberry Pi OS 64-bit Requirements
+
+This project is designed for **Raspberry Pi OS 64-bit (Debian Bookworm/Trixie)** with Python 3.11+.
+
+**Critical:** Heavy Python packages (OpenCV, NumPy) **MUST** be installed via `apt`, not `pip`, to avoid compilation errors on ARM architecture.
+
+---
+
 ## Hardware Wiring
 
 ### Ultrasonic Sensors (HC-SR04)
@@ -26,12 +34,14 @@
 
 Connect Raspberry Pi Camera Module v1.3 to CSI port on Raspberry Pi.
 
+---
+
 ## Software Installation
 
 ### Quick Install (Recommended)
 
 ```bash
-# Clone or download the repository
+# Clone repository
 cd /home/pi
 git clone https://github.com/AmmarRiaz123/Navicane.git
 cd Navicane
@@ -41,8 +51,8 @@ sudo bash install.sh
 ```
 
 The script will automatically:
-- Install all system dependencies
-- Install Python packages from requirements.txt
+- Install all system dependencies via apt
+- Install minimal pip packages
 - Enable camera interface
 - Download AI model
 - Configure auto-start service
@@ -52,11 +62,55 @@ The script will automatically:
 ### 1. Update System
 
 ```bash
-sudo apt-get update
-sudo apt-get upgrade -y
+sudo apt update
+sudo apt upgrade -y
 ```
 
-### 2. Enable Camera
+### 2. Install System Dependencies (REQUIRED FIRST!)
+
+**This step is critical for Raspberry Pi OS 64-bit:**
+
+```bash
+sudo apt install -y \
+    python3-opencv \
+    python3-numpy \
+    python3-pip \
+    python3-dev \
+    python3-rpi.gpio \
+    espeak \
+    libcamera-apps \
+    git
+```
+
+**Why use apt instead of pip?**
+
+On Raspberry Pi OS 64-bit (arm64):
+- ❌ `pip install opencv-python` → Fails with compilation errors
+- ❌ `pip install numpy` → Takes hours and may fail
+- ✅ `apt install python3-opencv python3-numpy` → Works instantly
+
+The apt packages are:
+- Pre-compiled for Raspberry Pi ARM architecture
+- Optimized for performance
+- Tested and stable
+- Officially supported
+
+### 3. Verify System Packages
+
+```bash
+# Test OpenCV
+python3 -c "import cv2; print('OpenCV version:', cv2.__version__)"
+# Test NumPy
+python3 -c "import numpy; print('NumPy version:', numpy.__version__)"
+# Test GPIO
+python3 -c "import RPi.GPIO; print('GPIO: OK')"
+# Test espeak
+espeak "System check successful"
+```
+
+All commands should execute without errors.
+
+### 4. Enable Camera
 
 ```bash
 sudo raspi-config
@@ -65,28 +119,23 @@ sudo raspi-config
 sudo reboot
 ```
 
-### 3. Install System Dependencies
+### 5. Install Minimal Python Dependencies
 
 ```bash
-# System packages
-sudo apt-get install -y python3-pip python3-opencv espeak git
-```
+cd /home/pi/Navicane
 
-### 4. Install Python Dependencies
+# Option 1: System-wide (simple, recommended for single-purpose device)
+pip3 install -r requirements.txt --break-system-packages
 
-```bash
-cd /home/pi/smart_cane
-
-# Install from requirements.txt
+# Option 2: Virtual environment (better isolation)
+python3 -m venv venv
+source venv/bin/activate
 pip3 install -r requirements.txt
-
-# Or install manually
-pip3 install RPi.GPIO==0.7.1 numpy==1.24.3 opencv-python==4.8.1.78
 ```
 
-**Note**: On Raspberry Pi, it's recommended to use the system's `python3-opencv` package instead of pip's `opencv-python` for better performance. If you encounter issues, remove opencv-python from requirements.txt and rely on the apt-installed version.
+**Note:** The `requirements.txt` only contains `RPi.GPIO` since all other dependencies are installed via apt.
 
-### 5. Download Object Detection Model
+### 6. Download Object Detection Model
 
 ```bash
 # Create models directory
@@ -96,37 +145,47 @@ cd /home/pi/models
 # Download MobileNet SSD model
 wget https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt
 wget https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel
+
+# Verify downloads
+ls -lh
 ```
 
-### 6. Install Smart Cane Code
+### 7. Install Smart Cane Code
 
 ```bash
 # Copy all Python files to /home/pi/smart_cane
 mkdir -p /home/pi/smart_cane
-cd /home/pi/smart_cane
+cd /home/pi/Navicane
 
-# Copy: main.py, camera.py, ultrasonic.py, vibration.py, speech.py, config.py, utils.py, requirements.txt
+cp *.py /home/pi/smart_cane/
+cp requirements.txt /home/pi/smart_cane/
 ```
 
-### 7. Test Components
+### 8. Test Components Individually
 
-Test each module individually:
+Test each module to verify hardware and software:
 
 ```bash
 cd /home/pi/smart_cane
 
 # Test ultrasonic sensors
 python3 ultrasonic.py
+# Should show distance readings from 3 sensors
 
 # Test vibration motors
 python3 vibration.py
+# Motors should vibrate in left-center-right pattern
 
 # Test speech
 python3 speech.py
+# Should speak test phrases
 
-# Test camera (if model downloaded)
+# Test camera with object detection
 python3 camera.py
+# Should detect objects if models are downloaded
 ```
+
+---
 
 ## Auto-Start Configuration
 
@@ -137,12 +196,14 @@ Create `/etc/systemd/system/smart-cane.service`:
 ```ini
 [Unit]
 Description=Smart Cane for Blind Users
-After=multi-user.target
+After=multi-user.target network.target
 
 [Service]
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/smart_cane
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=/usr/bin/python3 /home/pi/smart_cane/main.py
 Restart=always
 RestartSec=10
@@ -186,7 +247,12 @@ sudo systemctl restart smart-cane.service
 
 # Disable auto-start
 sudo systemctl disable smart-cane.service
+
+# View logs in real-time
+journalctl -u smart-cane -f
 ```
+
+---
 
 ## Troubleshooting
 
@@ -195,17 +261,24 @@ sudo systemctl disable smart-cane.service
 ```bash
 # Check if camera detected
 vcgencmd get_camera
-
 # Should show: supported=1 detected=1
 
 # Test with libcamera
-libcamera-hello
+libcamera-hello --timeout 5000
 
 # Check video device
-ls /dev/video*
+ls -l /dev/video*
+
+# For legacy camera stack
+raspistill -o test.jpg
 ```
 
-If using libcamera, may need to adjust `CAMERA_INDEX` in `config.py`.
+If camera still doesn't work, update config:
+```bash
+sudo raspi-config
+# Interface Options > Legacy Camera Support > Enable
+sudo reboot
+```
 
 ### GPIO Permissions
 
@@ -213,46 +286,73 @@ If using libcamera, may need to adjust `CAMERA_INDEX` in `config.py`.
 # Add user to gpio group
 sudo usermod -a -G gpio pi
 
-# Reboot
+# Verify membership
+groups pi
+
+# Reboot to apply
 sudo reboot
 ```
 
 ### Speech Not Working
 
 ```bash
-# Test espeak
+# Test espeak directly
 espeak "Hello world"
 
-# Check ALSA settings
-alsamixer
-
-# Set default audio output
+# If no audio output
 sudo raspi-config
-# System Options > Audio > Select output
+# System Options > Audio > Select correct output (HDMI or headphone jack)
+
+# Test audio system
+speaker-test -t wav -c 2
+
+# Check ALSA mixer
+alsamixer
 ```
 
-### Python Package Issues
+### ImportError: No module named 'cv2'
 
 ```bash
-# If opencv-python fails to install on Raspberry Pi
-# Remove it from requirements.txt and use system package
-sudo apt-get install -y python3-opencv
+# This means OpenCV wasn't installed via apt
+sudo apt install python3-opencv
 
-# Verify installation
+# Verify
 python3 -c "import cv2; print(cv2.__version__)"
+```
 
-# If RPi.GPIO has permission issues
-sudo pip3 install RPi.GPIO
+### ImportError: No module named 'numpy'
+
+```bash
+# Install numpy via apt (NOT pip!)
+sudo apt install python3-numpy
+
+# Verify
+python3 -c "import numpy; print(numpy.__version__)"
 ```
 
 ### Model Download Issues
 
-If automatic download fails, manually download:
+If wget fails, manually download from browser:
 
 - [Prototxt](https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/MobileNetSSD_deploy.prototxt)
 - [Caffemodel](https://github.com/chuanqi305/MobileNet-SSD/raw/master/MobileNetSSD_deploy.caffemodel)
 
-Place in `/home/pi/models/`.
+Place both files in `/home/pi/models/`.
+
+### System Crashes or Freezes
+
+```bash
+# Check temperature
+vcgencmd measure_temp
+
+# If overheating, add heatsinks or reduce load
+# In config.py:
+CAMERA_WIDTH = 320
+CAMERA_HEIGHT = 240
+CAMERA_LOOP_DELAY = 1.0
+```
+
+---
 
 ## Performance Tuning
 
@@ -267,6 +367,9 @@ CAMERA_HEIGHT = 240
 
 # Increase loop delays if CPU overheats
 CAMERA_LOOP_DELAY = 1.0  # Run vision at 1Hz instead of 2Hz
+
+# Higher confidence threshold
+CONFIDENCE_THRESHOLD = 0.6
 ```
 
 ### Reduce CPU Load
@@ -275,19 +378,47 @@ CAMERA_LOOP_DELAY = 1.0  # Run vision at 1Hz instead of 2Hz
 # Disable unnecessary services
 sudo systemctl disable bluetooth
 sudo systemctl disable cups
+sudo systemctl disable avahi-daemon
 ```
+
+### Monitor System Resources
+
+```bash
+# Real-time monitoring
+htop
+
+# Temperature
+watch -n 1 vcgencmd measure_temp
+
+# Check logs for errors
+tail -f /home/pi/smart_cane.log
+```
+
+---
 
 ## Testing End-to-End
 
 ```bash
-# Run manually
+# Run manually (not as service)
 cd /home/pi/smart_cane
 python3 main.py
 
-# Should hear: "Smart cane starting" then "Smart cane ready"
-# Walk around - motors should vibrate when approaching obstacles
-# Point camera at objects - should announce detected items
+# Expected output:
+# - "Smart cane starting" (spoken)
+# - Sensors initialize
+# - Camera starts
+# - "Smart cane ready" (spoken)
+
+# Test obstacle detection:
+# - Wave hand in front of sensors
+# - Motors should vibrate
+
+# Test object detection:
+# - Point camera at person/chair/car
+# - Should announce detected objects
 ```
+
+---
 
 ## Safety Notes
 
@@ -296,9 +427,40 @@ python3 main.py
 3. Test thoroughly before real-world use
 4. Keep system charged and maintained
 5. Have emergency contact procedures
+6. Not intended for medical use without professional supervision
+
+---
+
+## Getting Help
+
+For issues:
+
+1. Check logs:
+```bash
+tail -100 /home/pi/smart_cane.log
+journalctl -u smart-cane -n 100
+```
+
+2. Verify system packages:
+```bash
+python3 --version
+dpkg -l | grep python3-opencv
+dpkg -l | grep python3-numpy
+dpkg -l | grep python3-rpi.gpio
+```
+
+3. Test components individually using standalone test modes
+
+4. Open an issue on GitHub with:
+   - Error messages from logs
+   - Output of `python3 --version`
+   - Output of `uname -a`
+   - Output of component tests
+
+---
 
 ## Support
 
-For issues, check:
-- `/home/pi/smart_cane.log`
-- `sudo journalctl -u smart-cane.service`
+- `/home/pi/smart_cane.log` - Application logs
+- `sudo journalctl -u smart-cane.service` - Service logs
+- GitHub Issues: https://github.com/AmmarRiaz123/Navicane/issues
