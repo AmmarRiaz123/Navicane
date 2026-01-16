@@ -9,10 +9,9 @@ from pathlib import Path
 USER_HOME = str(Path.home())
 
 # === ULTRASONIC SENSOR PINS ===
+# Single HC-SR04 sensor facing forward
 ULTRASONIC_SENSORS = {
-    'left': {'trigger': 23, 'echo': 24},
-    'center': {'trigger': 17, 'echo': 27},
-    'right': {'trigger': 22, 'echo': 10}
+    'center': {'trigger': 17, 'echo': 27}
 }
 
 # Distance threshold in cm - trigger vibration if closer
@@ -22,10 +21,9 @@ DISTANCE_THRESHOLD = 100  # 1 meter
 SENSOR_TIMEOUT = 0.1
 
 # === VIBRATION MOTOR PINS ===
+# Single vibration motor
 VIBRATION_MOTORS = {
-    'left': 18,
-    'center': 25,
-    'right': 8
+    'center': 25
 }
 
 # === CAMERA SETTINGS ===

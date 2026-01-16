@@ -21,25 +21,26 @@ All camera access is via `subprocess` calls to `rpicam-still`. See `CAMERA_ARCHI
 
 ## Hardware Wiring
 
-### Ultrasonic Sensors (HC-SR04)
+### Ultrasonic Sensor (HC-SR04)
 
-| Sensor | VCC | GND | Trigger | Echo |
-|--------|-----|-----|---------|------|
-| Left   | 5V  | GND | GPIO 23 | GPIO 24 |
-| Center | 5V  | GND | GPIO 17 | GPIO 27 |
-| Right  | 5V  | GND | GPIO 22 | GPIO 10 |
+| Pin | Connection |
+|-----|------------|
+| VCC | 5V |
+| GND | GND |
+| Trigger | GPIO 17 |
+| Echo | GPIO 27 (through voltage divider!) |
 
-**Important**: Use voltage divider (1kΩ + 2kΩ resistors) on Echo pins to convert 5V to 3.3V!
+**Important**: Use voltage divider (1kΩ + 2kΩ resistors) on Echo pin to convert 5V to 3.3V!
 
-### Vibration Motors
+### Vibration Motor
 
-| Motor  | Pin     | Ground |
-|--------|---------|--------|
-| Left   | GPIO 18 | GND    |
-| Center | GPIO 25 | GND    |
-| Right  | GPIO 8  | GND    |
+| Connection | Pin |
+|------------|-----|
+| Control | GPIO 25 (via transistor) |
+| Power | 5V (through transistor collector) |
+| Ground | GND |
 
-**Note**: Use transistors (2N2222) if motors draw >20mA
+**Note**: Use 2N2222 transistor with 1kΩ base resistor and 1N4001 flyback diode
 
 ### Camera Module
 

@@ -90,16 +90,16 @@ class SmartCane:
         logger.info("Smart Cane System stopped")
     
     def _ultrasonic_loop(self):
-        """Fast loop for ultrasonic sensors and vibration feedback"""
+        """Fast loop for ultrasonic sensor and vibration feedback"""
         logger.info("Ultrasonic loop started")
         
         while self.running:
             try:
-                # Read sensors
-                obstacle_status = self.ultrasonic.get_obstacle_status()
+                # Read sensor
+                is_obstacle = self.ultrasonic.is_obstacle_detected()
                 
-                # Update vibration motors
-                self.vibration.update_from_obstacles(obstacle_status)
+                # Update vibration motor
+                self.vibration.update_from_obstacle(is_obstacle)
                 
                 time.sleep(ULTRASONIC_LOOP_DELAY)
                 

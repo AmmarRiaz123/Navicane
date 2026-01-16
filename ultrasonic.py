@@ -1,6 +1,6 @@
 """
 Ultrasonic distance sensor module
-Manages 3 HC-SR04 sensors (left, center, right)
+Manages 1 HC-SR04 sensor (center/forward facing)
 """
 
 import RPi.GPIO as GPIO
@@ -64,83 +64,71 @@ class UltrasonicSensor:
             return None
 
 class UltrasonicArray:
-    """Manages all three ultrasonic sensors"""
+    """Manages the ultrasonic sensor"""
     
     def __init__(self):
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
         
-        self.sensors = {}
-        for position, pins in ULTRASONIC_SENSORS.items():
-            self.sensors[position] = UltrasonicSensor(
-                pins['trigger'], 
-                pins['echo'], 
-                position
-            )
+        # Initialize single sensor
+        pins = ULTRASONIC_SENSORS['center']
+        self.sensor = UltrasonicSensor(
+            pins['trigger'], 
+            pins['echo'], 
+            'center'
+        )
         
-        logger.info("Ultrasonic array initialized")
+        logger.info("Ultrasonic sensor initialized")
     
-    def read_all(self):
+    def read_distance(self):
         """
-        Read all sensors and return distances
-        Returns: dict with 'left', 'center', 'right' distances in cm
+        Read sensor and return distance
+        Returns: distance in cm or None
         """
-        distances = {}
-        for position, sensor in self.sensors.items():
-            distance = sensor.get_distance()
-            distances[position] = distance
-            if distance is not None:
-                logger.debug(f"{position}: {distance}cm")
-        
-        return distances
+        distance = self.sensor.get_distance()
+        if distance is not None:
+            logger.debug(f"Distance: {distance}cm")
+        return distance
     
-    def get_obstacle_status(self):
+    def is_obstacle_detected(self):
         """
-        Check which sensors detect obstacles within threshold
-        Returns: dict with boolean values for each position
+        Check if obstacle is within threshold
+        Returns: True if obstacle detected, False otherwise
         """
-        distances = self.read_all()
-        status = {}
+        distance = self.read_distance()
         
-        for position, distance in distances.items():
-            if distance is None:
-                status[position] = False
-            else:
-                status[position] = distance < DISTANCE_THRESHOLD
+        if distance is None:
+            return False
         
-        return status
+        return distance < DISTANCE_THRESHOLD
     
     def cleanup(self):
         """Clean up GPIO pins"""
         GPIO.cleanup()
-        logger.info("Ultrasonic array cleaned up")
+        logger.info("Ultrasonic sensor cleaned up")
 
 # === STANDALONE TEST ===
 if __name__ == "__main__":
-    print("Testing Ultrasonic Sensors...")
+    print("Testing Ultrasonic Sensor...")
     print(f"Threshold: {DISTANCE_THRESHOLD}cm\n")
     
-    array = UltrasonicArray()
+    sensor = UltrasonicArray()
     
     try:
         while True:
-            distances = array.read_all()
-            obstacles = array.get_obstacle_status()
+            distance = sensor.read_distance()
+            obstacle = sensor.is_obstacle_detected()
             
-            print("\n" + "="*50)
-            for pos in ['left', 'center', 'right']:
-                dist = distances.get(pos)
-                obst = obstacles.get(pos)
-                
-                if dist is None:
-                    print(f"{pos.upper():8} - No reading")
-                else:
-                    alert = " ⚠ OBSTACLE" if obst else ""
-                    print(f"{pos.upper():8} - {dist:6.2f}cm{alert}")
+            print("="*50)
+            if distance is None:
+                print("No reading")
+            else:
+                alert = " ⚠ OBSTACLE DETECTED!" if obstacle else ""
+                print(f"Distance: {distance:6.2f}cm{alert}")
             
             time.sleep(0.2)
             
     except KeyboardInterrupt:
         print("\n\nStopping...")
     finally:
-        array.cleanup()
+        sensor.cleanup()

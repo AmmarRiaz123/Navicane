@@ -11,9 +11,10 @@
 - Raspberry Pi 4 (4GB+ RAM)
 - Raspberry Pi OS 64-bit installed
 - Internet connection
-- MicroSD card (32GB+)
+- MicroSD Card (32GB+)
 - Pi Camera Module connected
-- 3× HC-SR04 sensors, 3× vibration motors (see [WIRING.md](WIRING.md))
+- **1× HC-SR04 ultrasonic sensor**
+- **1× vibration motor** (see [WIRING.md](WIRING.md))
 
 ---
 
@@ -130,19 +131,16 @@ cd ~/smart_cane
 
 Follow [WIRING.md](WIRING.md) to connect:
 
-**Ultrasonic Sensors:**
-- Left: Trigger=GPIO23, Echo=GPIO24 (with voltage divider!)
-- Center: Trigger=GPIO17, Echo=GPIO27
-- Right: Trigger=GPIO22, Echo=GPIO10
+**Ultrasonic Sensor:**
+- Trigger: GPIO17
+- Echo: GPIO27 (with voltage divider: 1kΩ + 2kΩ resistors)
 
-**Vibration Motors:**
-- Left: GPIO18 (via transistor)
-- Center: GPIO25 (via transistor)
-- Right: GPIO8 (via transistor)
+**Vibration Motor:**
+- GPIO25 (via 2N2222 transistor with 1kΩ base resistor and 1N4001 flyback diode)
 
 **Camera:** Connect to CSI port
 
-⚠️ **Use voltage dividers on ultrasonic Echo pins!** (1kΩ + 2kΩ resistors)
+⚠️ **Use voltage divider on ultrasonic Echo pin!** (1kΩ + 2kΩ resistors)
 
 ---
 

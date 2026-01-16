@@ -1,6 +1,6 @@
 """
 Vibration motor control module
-Manages 3 vibration motors (left, center, right)
+Manages 1 vibration motor (center)
 """
 
 import RPi.GPIO as GPIO
@@ -43,65 +43,53 @@ class VibrationMotor:
         self.pwm.stop()
 
 class VibrationController:
-    """Manages all vibration motors"""
+    """Manages vibration motor"""
     
     def __init__(self):
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
         
-        self.motors = {}
-        for position, pin in VIBRATION_MOTORS.items():
-            self.motors[position] = VibrationMotor(pin, position)
+        # Initialize single motor
+        pin = VIBRATION_MOTORS['center']
+        self.motor = VibrationMotor(pin, 'center')
         
         logger.info("Vibration controller initialized")
     
-    def update_from_obstacles(self, obstacle_status):
+    def update_from_obstacle(self, is_obstacle):
         """
-        Update motors based on obstacle detection
-        obstacle_status: dict with 'left', 'center', 'right' boolean values
+        Update motor based on obstacle detection
+        is_obstacle: boolean - True if obstacle detected
         """
-        for position, is_obstacle in obstacle_status.items():
-            if position in self.motors:
-                if is_obstacle:
-                    self.motors[position].on()
-                else:
-                    self.motors[position].off()
+        if is_obstacle:
+            self.motor.on()
+        else:
+            self.motor.off()
     
-    def set_motor(self, position, state):
+    def set_intensity(self, intensity):
         """
-        Manually control a motor
-        position: 'left', 'center', or 'right'
-        state: True/False or 0-100 for intensity
+        Set motor intensity
+        intensity: 0-100
         """
-        if position in self.motors:
-            if isinstance(state, bool):
-                if state:
-                    self.motors[position].on()
-                else:
-                    self.motors[position].off()
-            else:
-                self.motors[position].set_intensity(state)
+        self.motor.set_intensity(intensity)
     
-    def all_off(self):
-        """Turn off all motors"""
-        for motor in self.motors.values():
-            motor.off()
+    def on(self):
+        """Turn motor on"""
+        self.motor.on()
     
-    def test_pattern(self):
-        """Run a test pattern"""
+    def off(self):
+        """Turn motor off"""
+        self.motor.off()
+    
+    def pulse(self, duration=0.3):
+        """Quick pulse for feedback"""
         import time
-        logger.info("Running test pattern...")
-        
-        for position in ['left', 'center', 'right']:
-            self.motors[position].on()
-            time.sleep(0.3)
-            self.motors[position].off()
-            time.sleep(0.2)
+        self.motor.on()
+        time.sleep(duration)
+        self.motor.off()
     
     def cleanup(self):
-        """Clean up all motors"""
-        for motor in self.motors.values():
-            motor.cleanup()
+        """Clean up motor"""
+        self.motor.cleanup()
         GPIO.cleanup()
         logger.info("Vibration controller cleaned up")
 
@@ -109,33 +97,39 @@ class VibrationController:
 if __name__ == "__main__":
     import time
     
-    print("Testing Vibration Motors...")
+    print("Testing Vibration Motor...")
     controller = VibrationController()
     
     try:
         # Test pattern
-        print("\nRunning test pattern...")
-        controller.test_pattern()
+        print("\nTest 1: On/Off pattern")
+        for i in range(3):
+            print(f"  Pulse {i+1}")
+            controller.on()
+            time.sleep(0.5)
+            controller.off()
+            time.sleep(0.5)
         
-        # Test obstacle response
-        print("\nTesting obstacle response...")
-        test_scenarios = [
-            {'left': True, 'center': False, 'right': False},
-            {'left': False, 'center': True, 'right': False},
-            {'left': False, 'center': False, 'right': True},
-            {'left': True, 'center': True, 'right': True},
-            {'left': False, 'center': False, 'right': False}
-        ]
+        # Test intensity levels
+        print("\nTest 2: Intensity levels")
+        for intensity in [25, 50, 75, 100]:
+            print(f"  Intensity: {intensity}%")
+            controller.set_intensity(intensity)
+            time.sleep(1)
         
-        for scenario in test_scenarios:
-            print(f"\nObstacles: {scenario}")
-            controller.update_from_obstacles(scenario)
-            time.sleep(2)
+        controller.off()
+        
+        # Test pulse
+        print("\nTest 3: Quick pulses")
+        for i in range(5):
+            print(f"  Pulse {i+1}")
+            controller.pulse(0.2)
+            time.sleep(0.3)
         
         print("\nTest complete!")
         
     except KeyboardInterrupt:
         print("\n\nStopping...")
     finally:
-        controller.all_off()
+        controller.off()
         controller.cleanup()
