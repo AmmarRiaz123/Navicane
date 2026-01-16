@@ -4,6 +4,7 @@ Utility functions for Smart Cane System
 
 import logging
 import time
+import os
 from functools import wraps
 from config import LOG_FILE, LOG_LEVEL
 
@@ -12,22 +13,36 @@ def setup_logger(name):
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, LOG_LEVEL))
     
-    # File handler
-    fh = logging.FileHandler(LOG_FILE)
-    fh.setLevel(logging.DEBUG)
+    # Ensure log directory exists
+    log_dir = os.path.dirname(LOG_FILE)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     
-    # Console handler
+    # File handler
+    try:
+        fh = logging.FileHandler(LOG_FILE)
+        fh.setLevel(logging.DEBUG)
+        
+        # Formatter
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+    except Exception as e:
+        # If file logging fails, just use console
+        print(f"Warning: Could not create log file {LOG_FILE}: {e}")
+        print("Continuing with console logging only...")
+    
+    # Console handler (always add this)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     
-    # Formatter
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    fh.setFormatter(formatter)
     ch.setFormatter(formatter)
     
-    logger.addHandler(fh)
     logger.addHandler(ch)
     
     return logger

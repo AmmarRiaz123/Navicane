@@ -2,6 +2,11 @@
 Configuration file for Smart Cane System
 All hardware pins, thresholds, and detection parameters
 """
+import os
+from pathlib import Path
+
+# Get user's home directory dynamically
+USER_HOME = str(Path.home())
 
 # === ULTRASONIC SENSOR PINS ===
 ULTRASONIC_SENSORS = {
@@ -37,9 +42,9 @@ RPICAM_CAPTURE_INTERVAL = 2.0  # 2 seconds between frames
 RPICAM_TIMEOUT = 5
 
 # === OBJECT DETECTION ===
-# Model paths (download instructions in setup)
-MODEL_PATH = '/home/pi/models/MobileNetSSD_deploy.caffemodel'
-PROTOTXT_PATH = '/home/pi/models/MobileNetSSD_deploy.prototxt'
+# Model paths - use dynamic home directory
+MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
+PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
 CONFIDENCE_THRESHOLD = 0.5
@@ -62,7 +67,12 @@ ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz
 CAMERA_LOOP_DELAY = 2.0  # 2 seconds between captures (adjusted for rpicam)
 
 # === LOGGING ===
-LOG_FILE = '/home/pi/smart_cane.log'
+# Use current directory or home directory for logs
+LOG_FILE = os.path.join(os.getcwd(), 'smart_cane.log')
+
+# Create log directory if needed
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
 LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 
 # === TTS SETTINGS ===

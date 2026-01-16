@@ -5,14 +5,17 @@ After=multi-user.target network.target
 
 [Service]
 Type=simple
+# User will be set dynamically by install.sh
 User=pi
 Group=pi
+# WorkingDirectory will be set dynamically by install.sh
 WorkingDirectory=/home/pi/smart_cane
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 ExecStart=/usr/bin/python3 /home/pi/smart_cane/main.py
 Restart=always
 RestartSec=10
+# Logs will go to working directory
 StandardOutput=append:/home/pi/smart_cane/smart_cane.log
 StandardError=append:/home/pi/smart_cane/smart_cane.log
 

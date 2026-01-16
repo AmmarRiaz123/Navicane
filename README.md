@@ -155,15 +155,17 @@ cd ~/Navicane
 rpicam-hello -t 3000
 
 # Test Python modules individually
-python3 camera.py      # Should detect objects
+python3 camera.py      # Should detect objects and create smart_cane.log
 python3 ultrasonic.py  # Should show distances
 python3 vibration.py   # Should vibrate motors
 python3 speech.py      # Should speak
 ```
 
-**Note:** If you get "No module named 'config'", make sure you're in the directory with the Python files:
+**Note:** Tests will create a `smart_cane.log` file in the current directory.
+
+**If you get "No module named 'config'":**
 ```bash
-cd ~/Navicane  # OR cd ~/smart_cane if you ran install.sh
+cd ~/Navicane  # Make sure you're in the directory with the Python files
 ```
 
 ---
@@ -219,7 +221,7 @@ sudo systemctl disable smart-cane  # Disable auto-start
 ```plaintext
 Navicane/                    # Clone location
 ├── camera.py                # Camera and object detection
-├── config.py                # Configuration settings
+├── config.py                # Configuration settings (uses dynamic paths)
 ├── download_models.sh       # AI model downloader script
 ├── install.sh               # Installation script
 ├── main.py                  # Main program file
@@ -230,17 +232,20 @@ Navicane/                    # Clone location
 ├── speech.py                # Text-to-speech
 ├── utils.py                 # Helper functions
 ├── verify_installation.sh   # System checker
+├── smart_cane.log          # Runtime logs (created when running)
 └── WIRING.md               # Hardware wiring guide
 
 ~/smart_cane/               # Runtime location (created by install.sh)
 ├── *.py                    # All Python modules copied here
 └── smart_cane.log         # Runtime logs
 
-~/models/                   # AI models
+~/models/                   # AI models (auto-detected by config.py)
 ├── yolov4-tiny.weights
 ├── yolov4-tiny.cfg
 └── coco.names
 ```
+
+**Note:** Log files are created in the current working directory, so you'll find `smart_cane.log` in whichever directory you run the program from.
 
 ---
 
@@ -270,10 +275,27 @@ cd ~/Navicane
 python3 main.py
 ```
 
+### FileNotFoundError: '/home/pi/smart_cane.log'
+
+This happens when your username isn't `pi`. The updated config.py now uses dynamic paths.
+
+**Fix:**
+```bash
+cd ~/Navicane
+git pull  # Get latest changes with dynamic paths
+python3 camera.py  # Should work now
+```
+
+Or manually update `config.py`:
+```python
+import os
+LOG_FILE = os.path.join(os.getcwd(), 'smart_cane.log')
+```
+
 ---
 
 ## 📞 Support
 
 - **Issues:** [GitHub Issues](https://github.com/AmmarRiaz123/Navicane/issues)
-- **Logs:** `tail -f ~/smart_cane/smart_cane.log` (if using service)
+- **Logs:** `cat ~/Navicane/smart_cane.log` or `cat ~/smart_cane/smart_cane.log`
 - **Verification:** `bash verify_installation.sh`
