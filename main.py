@@ -21,6 +21,8 @@ class SmartCane:
     
     def __init__(self):
         self.running = False
+        self.current_distance = None  # Share distance between threads
+        self.distance_lock = threading.Lock()
         
         # Initialize components
         logger.info("Initializing Smart Cane System...")
@@ -98,6 +100,10 @@ class SmartCane:
                 # Read distance
                 distance = self.ultrasonic.read_distance()
                 
+                # Store distance for camera thread
+                with self.distance_lock:
+                    self.current_distance = distance
+                
                 # Update vibration based on distance (dynamic intensity)
                 self.vibration.update_from_distance(distance)
                 
@@ -115,38 +121,43 @@ class SmartCane:
         
         while self.running:
             try:
+                # Get current distance from ultrasonic
+                with self.distance_lock:
+                    current_dist = self.current_distance
+                
+                # Only run detection if obstacle is close (< 100cm)
+                if current_dist is None or current_dist > 100:
+                    logger.debug("No close obstacle, skipping detection")
+                    time.sleep(CAMERA_LOOP_DELAY)
+                    continue
+                
                 # Detect objects
                 detections = self.camera.detect_objects()
                 
                 if detections:
                     # Filter for center objects (ahead)
                     center_objects = [
-                        (name, True) for name, is_center, conf, box in detections
+                        (name, conf) for name, is_center, conf, box in detections
                         if is_center
                     ]
                     
-                    # Also include high-priority side objects
-                    side_objects = [
-                        (name, False) for name, is_center, conf, box in detections
-                        if not is_center and name in ['person', 'car']
-                    ]
-                    
-                    all_objects = center_objects + side_objects
-                    
-                    # Update speech with visible objects
-                    self.speech.update_visible_objects(all_objects)
+                    if center_objects:
+                        # Get highest confidence detection
+                        best_detection = max(center_objects, key=lambda x: x[1])
+                        object_name, confidence = best_detection
+                        
+                        # Announce if critically close (< 60cm)
+                        if current_dist < 60:
+                            logger.info(f"Critical detection: {object_name} at {current_dist}cm")
+                            self.speech.announce_critical_object(object_name, current_dist)
+                        else:
+                            logger.debug(f"Detected {object_name} but not critical ({current_dist}cm)")
                 
                 time.sleep(CAMERA_LOOP_DELAY)
                 
             except Exception as e:
                 logger.error(f"Camera loop error: {e}")
                 time.sleep(2)
-                
-                # Try to recover camera
-                try:
-                    self.camera.open_camera()
-                except:
-                    pass
         
         logger.info("Camera loop stopped")
     

@@ -78,6 +78,14 @@ PRIORITY_OBJECTS = [
 CENTER_REGION_START = 0.3
 CENTER_REGION_END = 0.7
 
+# Distance at which to trigger speech announcements (cm)
+# Only announce objects when ultrasonic detects obstacle closer than this
+SPEECH_TRIGGER_DISTANCE = 60  # 60cm - matches danger zone
+
+# Distance at which to run camera detection (cm)
+# Save CPU by only running detection when something is nearby
+CAMERA_TRIGGER_DISTANCE = 100  # 100cm
+
 # Cooldown between same object announcements (seconds)
 SPEECH_COOLDOWN = 5.0
 

@@ -1,200 +1,188 @@
 """
-Speech output module using espeak
-Non-blocking text-to-speech with queue management
+Text-to-speech module
+Announces detected objects via espeak
+Only speaks when obstacle is critically close
 """
 
 import subprocess
+import time
 import threading
-import queue
-from config import TTS_SPEED, TTS_VOLUME
+from config import TTS_SPEED, TTS_VOLUME, SPEECH_COOLDOWN
 from utils import setup_logger, RateLimiter
 
 logger = setup_logger('speech')
 
-class SpeechEngine:
-    """Non-blocking text-to-speech engine"""
+class SmartSpeech:
+    """Text-to-speech with intelligent cooldown and priority"""
     
     def __init__(self):
-        self.speech_queue = queue.Queue()
-        self.is_running = False
-        self.worker_thread = None
+        self.rate_limiter = RateLimiter(SPEECH_COOLDOWN)
+        self.speaking = False
+        self.speech_lock = threading.Lock()
         
-        # Test if espeak is available
+        # Test espeak
         try:
             subprocess.run(['espeak', '--version'], 
-                         capture_output=True, check=True)
-            logger.info("Speech engine initialized (espeak)")
+                          capture_output=True, 
+                          timeout=2)
+            logger.info("espeak initialized successfully")
         except Exception as e:
-            logger.error(f"espeak not found: {e}")
-            raise
+            logger.error(f"espeak not available: {e}")
     
-    def start(self):
-        """Start the speech worker thread"""
-        if self.is_running:
-            return
-        
-        self.is_running = True
-        self.worker_thread = threading.Thread(target=self._worker, daemon=True)
-        self.worker_thread.start()
-        logger.info("Speech worker started")
-    
-    def stop(self):
-        """Stop the speech worker thread"""
-        self.is_running = False
-        if self.worker_thread:
-            self.worker_thread.join(timeout=2)
-        logger.info("Speech worker stopped")
-    
-    def _worker(self):
-        """Worker thread that processes speech queue"""
-        while self.is_running:
-            try:
-                text = self.speech_queue.get(timeout=0.5)
-                self._speak_blocking(text)
-                self.speech_queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Speech worker error: {e}")
-    
-    def _speak_blocking(self, text):
-        """Actually speak the text (blocking call)"""
+    def _speak_async(self, text):
+        """Internal async speech method"""
         try:
-            cmd = [
-                'espeak',
-                '-s', str(TTS_SPEED),
-                '-a', str(TTS_VOLUME),
-                text
-            ]
-            subprocess.run(cmd, check=False, capture_output=True)
-            logger.info(f"Spoke: '{text}'")
+            # Mark as speaking
+            self.speaking = True
+            
+            # Speak via espeak
+            subprocess.run(
+                ['espeak', text, 
+                 '-s', str(TTS_SPEED),
+                 '-a', str(TTS_VOLUME)],
+                capture_output=True,
+                timeout=5
+            )
+            
+            logger.info(f"Spoke: {text}")
+            
+        except subprocess.TimeoutExpired:
+            logger.warning(f"Speech timeout: {text}")
         except Exception as e:
-            logger.error(f"Error speaking '{text}': {e}")
+            logger.error(f"Speech error: {e}")
+        finally:
+            self.speaking = False
     
-    def speak(self, text):
+    def speak(self, text, force=False):
         """
-        Queue text to be spoken (non-blocking)
+        Speak text if not already speaking
+        text: string to speak
+        force: if True, bypass cooldown (for urgent messages)
         """
-        if not self.is_running:
-            self.start()
-        
-        self.speech_queue.put(text)
-        logger.debug(f"Queued: '{text}'")
-    
-    def speak_now(self, text):
-        """
-        Speak immediately, bypassing queue (blocking)
-        """
-        self._speak_blocking(text)
-    
-    def clear_queue(self):
-        """Clear all pending speech"""
-        while not self.speech_queue.empty():
-            try:
-                self.speech_queue.get_nowait()
-            except queue.Empty:
-                break
-
-class SmartSpeech:
-    """
-    Intelligent speech manager with cooldown and priority
-    """
-    
-    def __init__(self, cooldown_seconds=5.0):
-        self.engine = SpeechEngine()
-        self.engine.start()
-        self.rate_limiter = RateLimiter(cooldown_seconds)
-        self.current_objects = set()
-        
-        logger.info(f"Smart speech initialized (cooldown: {cooldown_seconds}s)")
-    
-    def announce_object(self, object_name, is_center=False):
-        """
-        Announce object with smart filtering
-        - Only speaks if object is new or cooldown expired
-        - Adds "ahead" for center objects
-        """
-        key = f"object_{object_name}"
-        
-        if self.rate_limiter.can_trigger(key):
-            location = "ahead" if is_center else "detected"
-            message = f"{object_name} {location}"
-            self.engine.speak(message)
+        with self.speech_lock:
+            # Don't speak over existing speech
+            if self.speaking and not force:
+                logger.debug(f"Already speaking, skipping: {text}")
+                return False
+            
+            # Check cooldown (unless forced)
+            if not force and not self.rate_limiter.can_trigger(text):
+                logger.debug(f"Cooldown active for: {text}")
+                return False
+            
+            # Speak in background thread
+            thread = threading.Thread(
+                target=self._speak_async,
+                args=(text,),
+                daemon=True
+            )
+            thread.start()
+            
             return True
+    
+    def speak_urgent(self, text):
+        """Speak immediately, bypassing cooldown"""
+        return self.speak(text, force=True)
+    
+    def announce_critical_object(self, object_name, distance):
+        """
+        Announce object only if critically close
+        object_name: detected object class name
+        distance: distance in cm from ultrasonic sensor
+        """
+        # Only speak if in critical or danger zone (< 60cm)
+        if distance is None or distance >= 60:
+            return False
         
-        return False
+        # Map object names to natural speech
+        speech_map = {
+            'person': 'person ahead',
+            'chair': 'chair ahead',
+            'car': 'car ahead',
+            'bicycle': 'bicycle ahead',
+            'motorbike': 'motorcycle ahead',
+            'bus': 'bus ahead',
+            'train': 'train ahead',
+            'bottle': 'bottle',
+            'diningtable': 'table ahead',
+            'pottedplant': 'plant ahead'
+        }
+        
+        speech_text = speech_map.get(object_name, f'{object_name} ahead')
+        
+        # Add urgency if very close
+        if distance < 30:
+            speech_text = f"Warning! {speech_text}"
+        
+        return self.speak(speech_text)
     
     def update_visible_objects(self, objects):
         """
-        Update currently visible objects and announce new ones
-        objects: list of (name, is_center) tuples
+        Legacy method - kept for compatibility
+        objects: list of (object_name, is_center) tuples
         """
-        new_objects = set(obj[0] for obj in objects)
+        # Filter only center objects
+        center_objects = [name for name, is_center in objects if is_center]
         
-        # Announce newly appeared objects
-        for name, is_center in objects:
-            if name not in self.current_objects:
-                self.announce_object(name, is_center)
+        if not center_objects:
+            return
         
-        # Reset cooldown for disappeared objects
-        disappeared = self.current_objects - new_objects
-        for name in disappeared:
-            self.rate_limiter.reset(f"object_{name}")
+        # Announce first priority object
+        for obj in ['person', 'car', 'chair']:
+            if obj in center_objects:
+                self.speak(f'{obj} ahead')
+                return
         
-        self.current_objects = new_objects
-    
-    def speak_urgent(self, text):
-        """Speak immediately without cooldown"""
-        self.engine.speak(text)
+        # Announce any other object
+        if center_objects:
+            self.speak(f'{center_objects[0]} ahead')
     
     def cleanup(self):
-        """Stop speech engine"""
-        self.engine.stop()
-        logger.info("Smart speech cleaned up")
+        """Clean up resources"""
+        # Wait for current speech to finish
+        if self.speaking:
+            time.sleep(0.5)
+        logger.info("Speech system cleaned up")
 
 # === STANDALONE TEST ===
 if __name__ == "__main__":
     import time
     
-    print("Testing Speech Module...\n")
-    
-    speech = SmartSpeech(cooldown_seconds=3.0)
+    print("Testing Speech Module...")
+    speech = SmartSpeech()
     
     try:
         # Test basic speech
-        print("Test 1: Basic announcements")
-        speech.announce_object("person", is_center=True)
-        time.sleep(1)
-        speech.announce_object("chair", is_center=False)
-        time.sleep(4)
+        print("\n1. Basic speech test")
+        speech.speak_urgent("Speech system initialized")
+        time.sleep(2)
         
         # Test cooldown
-        print("\nTest 2: Cooldown (should not repeat)")
-        speech.announce_object("person", is_center=True)
-        time.sleep(1)
-        speech.announce_object("person", is_center=True)  # Should be blocked
-        time.sleep(3)
-        
-        # Test object tracking
-        print("\nTest 3: Object tracking")
-        speech.update_visible_objects([
-            ("car", True),
-            ("bicycle", False)
-        ])
+        print("\n2. Cooldown test (should skip second)")
+        speech.speak("Test message one")
+        time.sleep(0.5)
+        speech.speak("Test message one")  # Should be skipped
+        time.sleep(6)
+        speech.speak("Test message one")  # Should work after cooldown
         time.sleep(2)
         
-        speech.update_visible_objects([
-            ("car", True),  # Still there, won't announce
-            ("person", True)  # New, will announce
-        ])
-        time.sleep(3)
-        
-        # Test urgent
-        print("\nTest 4: Urgent message")
-        speech.speak_urgent("Warning, obstacle detected")
+        # Test overlapping speech
+        print("\n3. Overlapping speech test (should skip second)")
+        speech.speak("This is a longer message to test overlap")
+        time.sleep(0.1)
+        speech.speak("This should be skipped")  # Should be skipped
         time.sleep(2)
         
-        print("\nTest complete!")
+        # Test critical announcements
+        print("\n4. Critical object announcements")
+        speech.announce_critical_object('person', 25)  # Should speak (critical)
+        time.sleep(2)
+        speech.announce_critical_object('chair', 45)   # Should speak (danger)
+        time.sleep(2)
+        speech.announce_critical_object('car', 100)    # Should NOT speak (too far)
+        time.sleep(2)
+        
+        print("\n✓ Test complete!")
         
     except KeyboardInterrupt:
         print("\n\nStopping...")

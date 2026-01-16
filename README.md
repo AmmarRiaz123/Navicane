@@ -158,22 +158,26 @@ python3 ultrasonic.py
 # Test vibration motor
 python3 vibration.py
 
-# Test integrated sensor + vibration (RECOMMENDED)
-python3 test_vibration_integration.py
-
-# Test speech
+# Test speech system
 python3 speech.py
 
 # Test camera detection
 python3 camera.py
+
+# Test full integration (RECOMMENDED)
+python3 test_full_integration.py
 ```
 
-**Haptic Feedback Zones:**
-- 🔴 **0-30cm (CRITICAL):** Constant 100% vibration
-- 🟠 **30-60cm (DANGER):** Fast pulses (5Hz), 70-100% intensity
-- 🟡 **60-100cm (WARNING):** Medium pulses (2Hz), 40-70% intensity
-- 🟢 **100-150cm (CAUTION):** Slow pulses (1Hz), 20-40% intensity
-- ⚪ **150cm+ (CLEAR):** Motor off
+**Smart Speech System:**
+- 🔕 **Silent when far:** No announcements when objects > 60cm away
+- 🔊 **Speaks when critical:** Announces objects when < 60cm (danger/critical zone)
+- ⏸️  **No overlap:** Won't speak over itself
+- 🔄 **Cooldown:** 5-second cooldown between same object announcements
+- ⚡ **Urgent prefix:** Adds "Warning!" for objects < 30cm
+
+**Example Behavior:**
+
+*(To be filled based on actual behavior)*
 
 ---
 
