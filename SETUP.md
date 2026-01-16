@@ -10,23 +10,12 @@ This project is designed for **Raspberry Pi OS 64-bit (Debian Bookworm/Trixie)**
 
 ## ⚠️ Important: Camera System Constraint
 
-**CRITICAL:** This Raspberry Pi system has a hardware/software constraint:
+**CRITICAL:** This Raspberry Pi uses rpicam-* CLI commands ONLY for camera access.
 
-✅ **WORKS:** rpicam-* CLI commands (rpicam-hello, rpicam-still, rpicam-vid)  
-❌ **DOES NOT WORK:** Picamera2, cv2.VideoCapture, libcamera Python bindings
+- ✅ Works: `rpicam-hello`, `rpicam-still`, `rpicam-vid`
+- ❌ Does NOT work: Picamera2, cv2.VideoCapture, libcamera Python bindings
 
-The camera can **ONLY** be accessed via `rpicam-*` command-line tools. All camera functionality in this project uses `subprocess` calls to `rpicam-still` to capture frames, which are then processed by OpenCV.
-
-**Why this limitation exists:**
-- Specific Raspberry Pi OS build
-- libcamera version incompatibility
-- Python bindings not functional
-- Direct device access hangs or fails
-
-**How this project handles it:**
-1. Camera capture: `rpicam-still` via subprocess
-2. Frame processing: OpenCV reads saved images
-3. Detection: Standard OpenCV DNN on captured frames
+All camera access is via `subprocess` calls to `rpicam-still`. See `CAMERA_ARCHITECTURE.md` for details.
 
 ---
 

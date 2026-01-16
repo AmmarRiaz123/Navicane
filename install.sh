@@ -30,8 +30,7 @@ apt-get update -y
 apt-get upgrade -y
 
 # Install system dependencies (CRITICAL for arm64!)
-echo "Installing system dependencies via apt..."
-echo "This installs OpenCV, NumPy, and other heavy packages that won't build via pip on arm64"
+echo "Installing system dependencies..."
 apt-get install -y \
     python3-opencv \
     python3-numpy \
@@ -44,11 +43,11 @@ apt-get install -y \
 
 # Verify critical packages
 echo ""
-echo "Verifying system packages..."
-python3 -c "import cv2; print('✓ OpenCV version:', cv2.__version__)" || { echo "✗ OpenCV not found!"; exit 1; }
-python3 -c "import numpy; print('✓ NumPy version:', numpy.__version__)" || { echo "✗ NumPy not found!"; exit 1; }
-python3 -c "import RPi.GPIO; print('✓ RPi.GPIO installed')" || { echo "✗ RPi.GPIO not found!"; exit 1; }
-espeak "Installation check" 2>/dev/null && echo "✓ espeak working" || echo "⚠ espeak may have issues"
+echo "Verifying installations..."
+python3 -c "import cv2; print('✓ OpenCV:', cv2.__version__)" || { echo "✗ OpenCV failed"; exit 1; }
+python3 -c "import numpy; print('✓ NumPy:', numpy.__version__)" || { echo "✗ NumPy failed"; exit 1; }
+python3 -c "import RPi.GPIO; print('✓ GPIO OK')" || { echo "✗ GPIO failed"; exit 1; }
+espeak "Check" 2>/dev/null && echo "✓ espeak OK" || echo "⚠ espeak issues"
 echo ""
 
 # Install minimal Python packages via pip
