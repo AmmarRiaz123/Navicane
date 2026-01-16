@@ -23,7 +23,26 @@ SENSOR_TIMEOUT = 0.1
 # === VIBRATION MOTOR PINS ===
 # Single vibration motor
 VIBRATION_MOTORS = {
-    'center': 17
+    'center': 25
+}
+
+# === VIBRATION INTENSITY SETTINGS ===
+# Distance ranges for different vibration intensities (in cm)
+VIBRATION_RANGES = {
+    'critical': (0, 30),      # 0-30cm: 100% intensity (constant)
+    'danger': (30, 60),       # 30-60cm: 70-100% intensity (fast pulses)
+    'warning': (60, 100),     # 60-100cm: 40-70% intensity (medium pulses)
+    'caution': (100, 150),    # 100-150cm: 20-40% intensity (slow pulses)
+    'clear': (150, 400)       # 150cm+: 0% intensity (off)
+}
+
+# Pulse frequencies (Hz) for different zones
+VIBRATION_PULSE_RATES = {
+    'critical': 0,            # Constant vibration (no pulse)
+    'danger': 5,              # 5 pulses per second
+    'warning': 2,             # 2 pulses per second
+    'caution': 1,             # 1 pulse per second
+    'clear': 0                # Off
 }
 
 # === CAMERA SETTINGS ===
