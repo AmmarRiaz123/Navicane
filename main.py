@@ -95,11 +95,11 @@ class SmartCane:
         
         while self.running:
             try:
-                # Read sensor
-                is_obstacle = self.ultrasonic.is_obstacle_detected()
+                # Read distance
+                distance = self.ultrasonic.read_distance()
                 
-                # Update vibration motor
-                self.vibration.update_from_obstacle(is_obstacle)
+                # Update vibration based on distance (dynamic intensity)
+                self.vibration.update_from_distance(distance)
                 
                 time.sleep(ULTRASONIC_LOOP_DELAY)
                 

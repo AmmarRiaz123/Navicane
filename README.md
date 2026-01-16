@@ -152,19 +152,28 @@ cd ~/Navicane
 # Test camera (should show preview for 3 seconds)
 rpicam-hello -t 3000
 
-# Test Python modules individually
-python3 camera.py      # Should detect objects and create smart_cane.log
-python3 ultrasonic.py  # Should show distances
-python3 vibration.py   # Should vibrate motors
-python3 speech.py      # Should speak
+# Test ultrasonic sensor
+python3 ultrasonic.py
+
+# Test vibration motor
+python3 vibration.py
+
+# Test integrated sensor + vibration (RECOMMENDED)
+python3 test_vibration_integration.py
+
+# Test speech
+python3 speech.py
+
+# Test camera detection
+python3 camera.py
 ```
 
-**Note:** Tests will create a `smart_cane.log` file in the current directory.
-
-**If you get "No module named 'config'":**
-```bash
-cd ~/Navicane  # Make sure you're in the directory with the Python files
-```
+**Haptic Feedback Zones:**
+- 🔴 **0-30cm (CRITICAL):** Constant 100% vibration
+- 🟠 **30-60cm (DANGER):** Fast pulses (5Hz), 70-100% intensity
+- 🟡 **60-100cm (WARNING):** Medium pulses (2Hz), 40-70% intensity
+- 🟢 **100-150cm (CAUTION):** Slow pulses (1Hz), 20-40% intensity
+- ⚪ **150cm+ (CLEAR):** Motor off
 
 ---
 
