@@ -23,12 +23,14 @@ All camera access is via `subprocess` calls to `rpicam-still`. See `CAMERA_ARCHI
 
 ### Ultrasonic Sensor (HC-SR04)
 
+**Single sensor positioned on the LEFT side**
+
 | Pin | Connection |
 |-----|------------|
 | VCC | 5V |
 | GND | GND |
-| Trigger | GPIO 17 |
-| Echo | GPIO 27 (through voltage divider!) |
+| Trigger | GPIO 23 |
+| Echo | GPIO 24 (through voltage divider!) |
 
 **Important**: Use voltage divider (1kΩ + 2kΩ resistors) on Echo pin to convert 5V to 3.3V!
 

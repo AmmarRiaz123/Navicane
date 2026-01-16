@@ -1,6 +1,6 @@
 """
 Ultrasonic distance sensor module
-Manages 1 HC-SR04 sensor (center/forward facing)
+Manages 1 HC-SR04 sensor (left side)
 """
 
 import RPi.GPIO as GPIO
@@ -70,15 +70,15 @@ class UltrasonicArray:
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
         
-        # Initialize single sensor
-        pins = ULTRASONIC_SENSORS['center']
+        # Initialize left sensor
+        pins = ULTRASONIC_SENSORS['left']
         self.sensor = UltrasonicSensor(
             pins['trigger'], 
             pins['echo'], 
-            'center'
+            'left'
         )
         
-        logger.info("Ultrasonic sensor initialized")
+        logger.info("Left ultrasonic sensor initialized")
     
     def read_distance(self):
         """

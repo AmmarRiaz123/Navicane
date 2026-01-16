@@ -9,9 +9,9 @@ from pathlib import Path
 USER_HOME = str(Path.home())
 
 # === ULTRASONIC SENSOR PINS ===
-# Single HC-SR04 sensor facing forward
+# Single HC-SR04 sensor on the left side
 ULTRASONIC_SENSORS = {
-    'center': {'trigger': 17, 'echo': 27}
+    'left': {'trigger': 23, 'echo': 24}
 }
 
 # Distance threshold in cm - trigger vibration if closer
