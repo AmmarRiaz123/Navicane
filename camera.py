@@ -145,6 +145,7 @@ class ObjectDetector:
         outputs = self.net.forward(output_layers)
         
         results = []
+        total_detections = 0
         
         for output in outputs:
             for detection in output:
@@ -152,13 +153,19 @@ class ObjectDetector:
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
                 
+                total_detections += 1
+                
                 if confidence > CONFIDENCE_THRESHOLD:
                     if class_id >= len(self.classes):
                         continue
                     
                     class_name = self.classes[class_id]
                     
+                    # Log all detections above threshold
+                    logger.info(f"Detected: {class_name} with {confidence:.2f} confidence")
+                    
                     if class_name not in PRIORITY_OBJECTS:
+                        logger.debug(f"Skipping {class_name} (not in priority list)")
                         continue
                     
                     center_x = int(detection[0] * w)
@@ -172,6 +179,8 @@ class ObjectDetector:
                     endY = int(center_y + height / 2)
                     
                     results.append((class_name, float(confidence), (startX, startY, endX, endY)))
+        
+        logger.debug(f"Processed {total_detections} detections, {len(results)} passed filters")
         
         return results
 
@@ -339,34 +348,36 @@ if __name__ == "__main__":
     try:
         camera = CameraManager()
         
-        print("Running detection for 30 seconds...")
-        print("Press Ctrl+C to stop\n")
+        print("Capturing and detecting for 10 seconds...")
+        print("Point camera at objects (person, chair, car, etc.)\n")
         
-        start_time = time.time()
-        
-        while time.time() - start_time < 30:
+        for i in range(5):  # 5 captures, 2 seconds apart
+            print(f"\n--- Capture {i+1}/5 ---")
             detections = camera.detect_objects()
             
             if detections:
-                print(f"\nFrame {camera.frame_count}:")
+                print(f"✓ Found {len(detections)} objects:")
                 for name, is_center, conf, box in detections:
                     loc = "AHEAD" if is_center else "side"
-                    print(f"  {name} ({loc}) - {conf:.2f}")
+                    print(f"  • {name} ({loc}) - confidence: {conf:.2f}")
             else:
-                print(f"Frame {camera.frame_count}: No objects detected")
+                print("✗ No objects detected")
+                print("  Tip: Point camera at person, chair, or car")
             
-            time.sleep(2)  # Wait between captures
+            time.sleep(2)
         
         # Save final frame with boxes
-        print("\nSaving final frame with boxes...")
+        print("\n\nSaving final frame with detection boxes...")
         camera.capture_frame_with_boxes("test_detection.jpg")
-        
+        print("✓ Saved to: test_detection.jpg")
         print("\nTest complete!")
         
     except KeyboardInterrupt:
         print("\n\nStopping...")
     except Exception as e:
         print(f"\n\nError: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         try:
             camera.cleanup()
