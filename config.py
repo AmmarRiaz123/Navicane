@@ -15,7 +15,7 @@ ULTRASONIC_SENSORS = {
 }
 
 # Distance threshold in cm - trigger vibration if closer
-DISTANCE_THRESHOLD = 100  # 1 meter
+DISTANCE_THRESHOLD = 60  # 60cm threshold (was 100)
 
 # Sensor timeout in seconds
 SENSOR_TIMEOUT = 0.1

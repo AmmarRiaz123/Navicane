@@ -1,8 +1,3 @@
-"""
-Ultrasonic distance sensor module
-Manages 1 HC-SR04 sensor (left side)
-"""
-
 import RPi.GPIO as GPIO
 import time
 from config import ULTRASONIC_SENSORS, DISTANCE_THRESHOLD, SENSOR_TIMEOUT
@@ -35,18 +30,22 @@ class UltrasonicSensor:
             time.sleep(0.00001)
             GPIO.output(self.trigger_pin, GPIO.LOW)
             
-            # Wait for echo start
+            # Wait for echo start with timeout
+            pulse_start = time.time()
             timeout_start = time.time()
             while GPIO.input(self.echo_pin) == GPIO.LOW:
                 pulse_start = time.time()
                 if pulse_start - timeout_start > SENSOR_TIMEOUT:
+                    logger.debug(f"{self.name}: Timeout waiting for echo start")
                     return None
             
-            # Wait for echo end
+            # Wait for echo end with timeout
+            pulse_end = time.time()
             timeout_start = time.time()
             while GPIO.input(self.echo_pin) == GPIO.HIGH:
                 pulse_end = time.time()
                 if pulse_end - timeout_start > SENSOR_TIMEOUT:
+                    logger.debug(f"{self.name}: Timeout waiting for echo end")
                     return None
             
             # Calculate distance
@@ -57,7 +56,9 @@ class UltrasonicSensor:
             # Validate range (HC-SR04: 2cm - 400cm)
             if 2 <= distance <= 400:
                 return distance
-            return None
+            else:
+                logger.debug(f"{self.name}: Distance {distance}cm out of valid range")
+                return None
             
         except Exception as e:
             logger.error(f"Error reading {self.name} sensor: {e}")
@@ -97,10 +98,18 @@ class UltrasonicArray:
         """
         distance = self.read_distance()
         
+        # If no valid reading, assume no obstacle
         if distance is None:
+            logger.debug("No valid distance reading")
             return False
         
-        return distance < DISTANCE_THRESHOLD
+        # Check if distance is less than threshold
+        is_obstacle = distance < DISTANCE_THRESHOLD
+        
+        if is_obstacle:
+            logger.debug(f"Obstacle detected: {distance}cm < {DISTANCE_THRESHOLD}cm")
+        
+        return is_obstacle
     
     def cleanup(self):
         """Clean up GPIO pins"""
@@ -109,8 +118,9 @@ class UltrasonicArray:
 
 # === STANDALONE TEST ===
 if __name__ == "__main__":
-    print("Testing Ultrasonic Sensor...")
-    print(f"Threshold: {DISTANCE_THRESHOLD}cm\n")
+    print("Testing Ultrasonic Sensor (LEFT side)...")
+    print(f"Threshold: {DISTANCE_THRESHOLD}cm")
+    print("Distances LESS than threshold will trigger warning\n")
     
     sensor = UltrasonicArray()
     
@@ -119,12 +129,13 @@ if __name__ == "__main__":
             distance = sensor.read_distance()
             obstacle = sensor.is_obstacle_detected()
             
-            print("="*50)
+            print("="*60)
             if distance is None:
-                print("No reading")
+                print("No reading (sensor timeout or out of range)")
             else:
-                alert = " ⚠ OBSTACLE DETECTED!" if obstacle else ""
-                print(f"Distance: {distance:6.2f}cm{alert}")
+                status = "⚠️  OBSTACLE!" if obstacle else "✓ Clear"
+                comparison = f"{distance:.2f}cm < {DISTANCE_THRESHOLD}cm" if obstacle else f"{distance:.2f}cm >= {DISTANCE_THRESHOLD}cm"
+                print(f"Distance: {distance:6.2f}cm  |  {comparison}  |  {status}")
             
             time.sleep(0.2)
             
