@@ -23,7 +23,7 @@ SENSOR_TIMEOUT = 0.1
 # === VIBRATION MOTOR PINS ===
 # Single vibration motor
 VIBRATION_MOTORS = {
-    'center': 25
+    'center': 17
 }
 
 # === VIBRATION INTENSITY SETTINGS ===
