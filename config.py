@@ -64,9 +64,7 @@ MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
 PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
-# Lower = more detections (but more false positives)
-# Higher = fewer detections (but more accurate)
-CONFIDENCE_THRESHOLD = 0.3  # Changed from 0.5 to 0.3 for testing
+CONFIDENCE_THRESHOLD = 0.3
 
 # Objects to detect and announce
 PRIORITY_OBJECTS = [
@@ -74,17 +72,15 @@ PRIORITY_OBJECTS = [
     'bus', 'train', 'bottle', 'diningtable', 'pottedplant'
 ]
 
-# Center region for "ahead" detection (percentage of frame width)
+# Center region for "ahead" detection
 CENTER_REGION_START = 0.3
 CENTER_REGION_END = 0.7
 
 # Distance at which to trigger speech announcements (cm)
-# Only announce objects when ultrasonic detects obstacle closer than this
-SPEECH_TRIGGER_DISTANCE = 60  # 60cm - matches danger zone
+SPEECH_TRIGGER_DISTANCE = 60  # Only announce objects when < 60cm
 
 # Distance at which to run camera detection (cm)
-# Save CPU by only running detection when something is nearby
-CAMERA_TRIGGER_DISTANCE = 100  # 100cm
+CAMERA_TRIGGER_DISTANCE = 100  # Only detect when < 100cm (saves CPU)
 
 # Cooldown between same object announcements (seconds)
 SPEECH_COOLDOWN = 2.0  # Reduced from 5.0 to 2.0 seconds
