@@ -200,29 +200,85 @@ python3 main.py
 
 ---
 
-## 🔄 Auto-Start on Boot (Optional)
+## 🔄 Auto-Start on Boot
 
 Make system start automatically when Pi powers on:
 
-```bash
-# Option 1: Run install script (copies files + sets up service)
-cd ~/Navicane
-sudo bash install.sh
+### Quick Setup (Recommended)
 
-# Option 2: Manual setup
-mkdir -p ~/smart_cane
-cp ~/Navicane/*.py ~/smart_cane/
-sudo cp ~/Navicane/smart-cane.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable smart-cane.service
-sudo systemctl start smart-cane.service
+```bash
+cd ~/Navicane
+sudo bash setup_autostart.sh
 ```
 
-**Control commands:**
+This will:
+- Create systemd service with correct user and paths
+- Add user to GPIO group
+- Enable auto-start on boot
+- Optionally start service immediately
+
+### Verify Auto-Start
+
 ```bash
-sudo systemctl stop smart-cane     # Stop
-sudo systemctl restart smart-cane  # Restart
-sudo systemctl disable smart-cane  # Disable auto-start
+# Check service status
+sudo systemctl status smart-cane
+
+# View logs
+tail -f ~/Navicane/smart_cane.log
+
+# Test by rebooting
+sudo reboot
+```
+
+### Control Commands
+
+```bash
+# Use control script
+bash ~/Navicane/control_cane.sh start
+bash ~/Navicane/control_cane.sh stop
+bash ~/Navicane/control_cane.sh status
+bash ~/Navicane/control_cane.sh logs
+
+# Or use systemctl directly
+sudo systemctl start smart-cane     # Start
+sudo systemctl stop smart-cane      # Stop
+sudo systemctl restart smart-cane   # Restart
+sudo systemctl status smart-cane    # Status
+sudo systemctl disable smart-cane   # Disable auto-start
+```
+
+### Troubleshooting Auto-Start
+
+**Service won't start:**
+```bash
+# Check service status
+sudo systemctl status smart-cane
+
+# View detailed logs
+journalctl -u smart-cane -n 50
+
+# Check permissions
+sudo systemctl cat smart-cane
+```
+
+**GPIO permission errors:**
+```bash
+# Verify user in gpio group
+groups $USER
+
+# If not, add and reboot
+sudo usermod -a -G gpio $USER
+sudo reboot
+```
+
+**Service starts but crashes:**
+```bash
+# Check application logs
+cat ~/Navicane/smart_cane.log
+
+# Test manually first
+cd ~/Navicane
+python3 main.py
 ```
 
 ---

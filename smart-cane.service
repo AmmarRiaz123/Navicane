@@ -5,19 +5,16 @@ After=multi-user.target network.target
 
 [Service]
 Type=simple
-# User will be set dynamically by install.sh
-User=pi
-Group=pi
-# WorkingDirectory will be set dynamically by install.sh
-WorkingDirectory=/home/pi/smart_cane
+User=pi1_
+Group=pi1_
+WorkingDirectory=/home/pi1_/Navicane
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 /home/pi/smart_cane/main.py
+ExecStart=/usr/bin/python3 /home/pi1_/Navicane/main.py
 Restart=always
 RestartSec=10
-# Logs will go to working directory
-StandardOutput=append:/home/pi/smart_cane/smart_cane.log
-StandardError=append:/home/pi/smart_cane/smart_cane.log
+StandardOutput=append:/home/pi1_/Navicane/smart_cane.log
+StandardError=append:/home/pi1_/Navicane/smart_cane.log
 
 # Security settings
 NoNewPrivileges=true
