@@ -82,7 +82,7 @@ CENTER_REGION_END = 0.7
 SPEECH_TRIGGER_DISTANCE = 60  # Only announce objects when < 60cm
 
 # Distance at which to run camera detection (cm)
-CAMERA_TRIGGER_DISTANCE = 100  # Only detect when < 100cm (saves CPU)
+CAMERA_TRIGGER_DISTANCE = 200  # Increased from 100cm to 200cm (detects from farther)
 
 # Cooldown between same object announcements (seconds)
 SPEECH_COOLDOWN = 2.0  # Reduced from 5.0 to 2.0 seconds
