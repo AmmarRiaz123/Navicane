@@ -40,7 +40,8 @@ Group=$ACTUAL_USER
 WorkingDirectory=$SCRIPT_DIR
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 $SCRIPT_DIR/main.py
+Environment="PYTHONIOENCODING=utf-8"
+ExecStart=/usr/bin/python3 -u $SCRIPT_DIR/main.py
 Restart=always
 RestartSec=10
 StandardOutput=append:$SCRIPT_DIR/smart_cane.log

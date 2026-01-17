@@ -64,33 +64,39 @@ MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
 PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
-CONFIDENCE_THRESHOLD = 0.3  # Balanced accuracy vs detection rate
+# Lower = more detections (but more false positives)
+# Higher = fewer detections (but more accurate)
+CONFIDENCE_THRESHOLD = 0.3  # Reduced from 0.5 to 0.3 for more sensitivity
 
-# Objects to detect and announce (EXPANDED LIST)
+# Objects to detect and announce (REDUCED LIST - only most important)
 PRIORITY_OBJECTS = [
-    'person', 'chair', 'car', 'bicycle', 'motorbike',
-    'bus', 'train', 'bottle', 'diningtable', 'pottedplant',
-    'dog', 'cat', 'bird', 'backpack', 'handbag', 'suitcase',
-    'laptop', 'keyboard', 'cell phone', 'book', 'clock', 'vase',
-    'scissors', 'teddy bear', 'sofa', 'bed', 'toilet', 'tv',
-    'remote', 'bench', 'potted plant', 'dining table'
+    'person',      # People
+    'chair',       # Chairs
+    'car',         # Vehicles
+    'bicycle',
+    'motorbike',
+    'bus',
+    'bench',       # Seating
+    'dog',         # Animals
+    'cat'
 ]
 
-# Center region for "ahead" detection (WIDER WINDOW)
-CENTER_REGION_START = 0.2  # Increased from 0.3 (wider detection area)
-CENTER_REGION_END = 0.8    # Increased from 0.7 (wider detection area)
+# Center region for "ahead" detection
+CENTER_REGION_START = 0.25  # Slightly narrower from 0.2
+CENTER_REGION_END = 0.75    # Slightly narrower from 0.8
 
 # Distance at which to trigger speech announcements (cm)
-SPEECH_TRIGGER_DISTANCE = 400 # Increased from 60cm to 100cm (speaks from farther)
+SPEECH_TRIGGER_DISTANCE = 80  # Reduced from 100cm to 80cm (only speak when closer)
 
 # Distance at which to run camera detection (cm)
-CAMERA_TRIGGER_DISTANCE = 200  # Detects from 2 meters
+CAMERA_TRIGGER_DISTANCE = 150  # Reduced from 200cm to 150cm (less frequent detection)
 
-
+# Cooldown between same object announcements (seconds)
+SPEECH_COOLDOWN = 5.0  # Increased from 3.0 to 5.0 seconds (less repetition)
 
 # === LOOP TIMING ===
-ULTRASONIC_LOOP_DELAY = 0.01  # 10ms = 100Hz
-CAMERA_LOOP_DELAY = 0.2  # Was 1.5. Try to run as fast as the Pi allows.
+ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz (unchanged - vibration needs fast response)
+CAMERA_LOOP_DELAY = 1.0  # Increased from 1.5 to 2.5 seconds (less frequent detection)
 
 # === LOGGING ===
 # Use current directory or home directory for logs
@@ -105,7 +111,4 @@ LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 # Increase volume to max (200) and slightly increase speed (170) for responsiveness
 TTS_SPEED = 170 
 TTS_VOLUME = 200 
-
-# REDUCE the cooldown so it can speak more frequently
-SPEECH_COOLDOWN = 1.0  # Was 3.0, now it can speak every second if needed
 

@@ -8,7 +8,10 @@ import threading
 import time
 import signal
 import sys
-from config import ULTRASONIC_LOOP_DELAY, CAMERA_LOOP_DELAY, SPEECH_TRIGGER_DISTANCE, CAMERA_TRIGGER_DISTANCE
+from config import (
+    ULTRASONIC_LOOP_DELAY, CAMERA_LOOP_DELAY, 
+    SPEECH_TRIGGER_DISTANCE, CAMERA_TRIGGER_DISTANCE
+)
 from ultrasonic import UltrasonicArray
 from vibration import VibrationController
 from camera import CameraManager
@@ -424,4 +427,18 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # Ensure proper logging when run directly
+    import logging
+    
+    # Set root logger to INFO for normal operation
+    # (DEBUG mode is available via run_main_debug.py)
+    logging.getLogger().setLevel(logging.INFO)
+    
+    print("=" * 70)
+    print("SMART CANE SYSTEM")
+    print("=" * 70)
+    print("\nStarting system...")
+    print("Press Ctrl+C to stop\n")
+    print("=" * 70)
+    
     main()
