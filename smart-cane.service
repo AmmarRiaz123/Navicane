@@ -1,25 +1,47 @@
 [Unit]
 Description=Smart Cane System for Blind Users
 Documentation=https://github.com/AmmarRiaz123/Navicane
-After=multi-user.target network.target
+After=multi-user.target network.target sound.target bluetooth.target
+Wants=sound.target bluetooth.target
 
 [Service]
 Type=simple
 User=pi1_
 Group=pi1_
+
+# Add user to multiple groups for hardware access
+SupplementaryGroups=video audio gpio bluetooth pulse-access
+
 WorkingDirectory=/home/pi1_/Navicane
+
+# Environment variables for audio and hardware access
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONIOENCODING=utf-8"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+
+# Initialize audio system first
+ExecStartPre=/home/pi1_/Navicane/init_audio.sh
+
+# Start main program
 ExecStart=/usr/bin/python3 -u /home/pi1_/Navicane/main.py
+
 Restart=always
 RestartSec=10
 StandardOutput=append:/home/pi1_/Navicane/smart_cane.log
 StandardError=append:/home/pi1_/Navicane/smart_cane.log
 
-# Security settings
+# Security settings (relaxed for hardware access)
 NoNewPrivileges=true
 PrivateTmp=true
+
+# Allow access to devices
+DeviceAllow=/dev/gpiomem rw
+DeviceAllow=/dev/video0 rw
+DeviceAllow=/dev/snd rw
+DevicePolicy=closed
 
 # Resource limits
 MemoryMax=2G
