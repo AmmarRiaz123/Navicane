@@ -362,63 +362,79 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
     signal.signal(signal.SIGTERM, signal_handler)  # systemctl stop
     
-    try:
-        # Create and start system
-        logger.info("="*60)
-        logger.info("SMART CANE SYSTEM STARTUP")
-        logger.info("="*60)
-        
-        cane = SmartCane()
-        cane.start()
-        
-        # Keep main thread alive
-        logger.info("Smart Cane running. Press Ctrl+C to stop.")
-        logger.info("="*60)
-        
-        # Main loop - just keep alive and log status periodically
-        last_status_time = time.time()
-        status_interval = 300  # Log status every 5 minutes
-        
-        while True:
-            time.sleep(10)
+    # Retry loop for robustness
+    max_startup_attempts = 3
+    attempt = 0
+    
+    while attempt < max_startup_attempts:
+        try:
+            attempt += 1
+            logger.info("="*60)
+            logger.info(f"SMART CANE SYSTEM STARTUP (Attempt {attempt}/{max_startup_attempts})")
+            logger.info("="*60)
             
-            # Periodic status check
-            current_time = time.time()
-            if current_time - last_status_time >= status_interval:
-                with cane.distance_lock:
-                    dist = cane.current_distance
+            # Create and start system
+            cane = SmartCane()
+            cane.start()
+            
+            # Keep main thread alive
+            logger.info("Smart Cane running. Press Ctrl+C to stop.")
+            logger.info("="*60)
+            
+            # Main loop - just keep alive and log status periodically
+            last_status_time = time.time()
+            status_interval = 300  # Log status every 5 minutes
+            
+            while True:
+                time.sleep(10)
                 
-                logger.info(f"Status: Running | Distance: {dist}cm | Threads: Ultrasonic={'alive' if cane.ultrasonic_thread.is_alive() else 'dead'}, Camera={'alive' if cane.camera_thread.is_alive() else 'dead'}")
-                last_status_time = current_time
-    
-    except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received")
-        if cane:
-            cane.stop()
-    
-    except Exception as e:
-        logger.critical(f"Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
+                # Periodic status check
+                current_time = time.time()
+                if current_time - last_status_time >= status_interval:
+                    try:
+                        with cane.distance_lock:
+                            dist = cane.current_distance
+                        
+                        ultrasonic_alive = cane.ultrasonic_thread.is_alive() if cane.ultrasonic_thread else False
+                        camera_alive = cane.camera_thread.is_alive() if cane.camera_thread else False
+                        
+                        logger.info(f"✅ Status: Running | Distance: {dist}cm | Threads: Ultrasonic={ultrasonic_alive}, Camera={camera_alive}")
+                        
+                        # If threads died, exit to trigger restart
+                        if not ultrasonic_alive or not camera_alive:
+                            logger.error("❌ One or more threads died - exiting for restart")
+                            raise Exception("Thread died")
+                        
+                        last_status_time = current_time
+                    except Exception as e:
+                        logger.error(f"Status check failed: {e}")
+            
+            # If we get here normally, break the retry loop
+            break
         
-        if cane:
-            cane.stop()
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received")
+            if cane:
+                cane.stop()
+            break
         
-        sys.exit(1)
+        except Exception as e:
+            logger.critical(f"💥 Fatal error (attempt {attempt}/{max_startup_attempts}): {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            if cane:
+                try:
+                    cane.cleanup()
+                except:
+                    pass
+            
+            if attempt < max_startup_attempts:
+                logger.info(f"🔄 Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                logger.critical("❌ Max startup attempts reached - exiting")
+                sys.exit(1)
 
 if __name__ == "__main__":
-    # Ensure proper logging when run directly
-    import logging
-    
-    # Set root logger to INFO for normal operation
-    # (DEBUG mode is available via run_main_debug.py)
-    logging.getLogger().setLevel(logging.INFO)
-    
-    print("=" * 70)
-    print("SMART CANE SYSTEM")
-    print("=" * 70)
-    print("\nStarting system...")
-    print("Press Ctrl+C to stop\n")
-    print("=" * 70)
-    
     main()

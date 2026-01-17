@@ -22,15 +22,19 @@ Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
 Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
 
-# Initialize audio system first (with timeout)
-ExecStartPre=/bin/bash -c '/home/pi1_/Navicane/init_audio.sh || exit 0'
+# Simple delay for audio system
+ExecStartPre=/bin/sleep 15
 
 # Start main program
 ExecStart=/usr/bin/python3 -u /home/pi1_/Navicane/main.py
 
-# Don't restart too quickly if it fails
-Restart=on-failure
-RestartSec=15
+# ALWAYS restart, no matter what
+Restart=always
+RestartSec=10
+
+# Keep trying even after many failures
+StartLimitInterval=0
+StartLimitBurst=0
 
 StandardOutput=append:/home/pi1_/Navicane/smart_cane.log
 StandardError=append:/home/pi1_/Navicane/smart_cane.log
@@ -48,6 +52,11 @@ DevicePolicy=closed
 # Resource limits
 MemoryMax=2G
 CPUQuota=80%
+
+# Ensure service keeps running
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
