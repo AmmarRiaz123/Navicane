@@ -15,15 +15,16 @@ def main():
     print("FULL SYSTEM INTEGRATION TEST")
     print("=" * 70)
     print("\nThis test demonstrates:")
-    print("  • Ultrasonic sensor detecting distance")
+    print("  • Ultrasonic sensor detecting distance (ALWAYS used for distance)")
     print("  • Vibration motor responding to distance")
-    print("  • Camera detecting objects")
-    print("  • Speech announcing ONLY when critically close (< 60cm)")
+    print("  • Camera detecting objects (identifies WHAT is there)")
+    print("  • Speech announcing when critically close:")
+    print("    - CRITICAL (< 30cm): Immediate warning (bypasses cooldown)")
+    print("    - DANGER (30-60cm): Announces with 2s cooldown")
     print("\nInstructions:")
     print("  1. Move object closer to sensor")
-    print("  2. When within 60cm, speech will announce what camera sees")
-    print("  3. Speech won't repeat same object for 5 seconds")
-    print("  4. Speech won't talk over itself")
+    print("  2. Within 60cm: speech announces what camera sees")
+    print("  3. Within 30cm: URGENT warning, always speaks")
     print("\nPress Ctrl+C to stop\n")
     print("=" * 70)
     
@@ -40,7 +41,7 @@ def main():
         last_detection_time = 0
         
         while True:
-            # Read distance
+            # Read distance from ULTRASONIC (only source of distance)
             distance = sensor.read_distance()
             
             if distance is None:
@@ -49,7 +50,7 @@ def main():
                 time.sleep(0.1)
                 continue
             
-            # Update vibration
+            # Update vibration based on ULTRASONIC distance
             vibration.update_from_distance(distance)
             
             # Get zone info
@@ -63,7 +64,7 @@ def main():
             if distance < 100 and (current_time - last_detection_time) > 2:
                 last_detection_time = current_time
                 
-                # Detect objects
+                # Camera detects WHAT is there
                 detections = camera.detect_objects()
                 
                 if detections:
@@ -75,18 +76,20 @@ def main():
                         # Get best detection
                         object_name, confidence = max(center_objects, key=lambda x: x[1])
                         
-                        # Announce if critically close (< 60cm)
+                        # Announce based on ULTRASONIC distance
                         if distance < 60:
-                            print(f"\n{zone_icon} {distance:6.2f}cm | {zone:8s} | 🎤 Announcing: {object_name}")
+                            urgency = "⚠️ CRITICAL" if distance < 30 else "🎤"
+                            print(f"\n{zone_icon} {distance:6.2f}cm (ultrasonic) | {zone:8s} | {urgency} Announcing: {object_name}")
+                            # Pass ULTRASONIC distance to speech
                             speech.announce_critical_object(object_name, distance)
                         else:
-                            print(f"{zone_icon} {distance:6.2f}cm | {zone:8s} | 👁️  Detected: {object_name} (too far to announce)", end='\r')
+                            print(f"{zone_icon} {distance:6.2f}cm (ultrasonic) | {zone:8s} | 👁️  Detected: {object_name} (too far)", end='\r')
                     else:
-                        print(f"{zone_icon} {distance:6.2f}cm | {zone:8s} | No objects ahead", end='\r')
+                        print(f"{zone_icon} {distance:6.2f}cm (ultrasonic) | {zone:8s} | No objects ahead", end='\r')
                 else:
-                    print(f"{zone_icon} {distance:6.2f}cm | {zone:8s} | No detections", end='\r')
+                    print(f"{zone_icon} {distance:6.2f}cm (ultrasonic) | {zone:8s} | No detections", end='\r')
             else:
-                print(f"{zone_icon} {distance:6.2f}cm | {zone:8s}", end='\r')
+                print(f"{zone_icon} {distance:6.2f}cm (ultrasonic) | {zone:8s}", end='\r')
             
             time.sleep(0.1)
             

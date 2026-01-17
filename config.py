@@ -87,7 +87,7 @@ SPEECH_TRIGGER_DISTANCE = 60  # 60cm - matches danger zone
 CAMERA_TRIGGER_DISTANCE = 100  # 100cm
 
 # Cooldown between same object announcements (seconds)
-SPEECH_COOLDOWN = 5.0
+SPEECH_COOLDOWN = 2.0  # Reduced from 5.0 to 2.0 seconds
 
 # === LOOP TIMING ===
 ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz
@@ -104,4 +104,4 @@ LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 
 # === TTS SETTINGS ===
 TTS_SPEED = 150  # Words per minute
-TTS_VOLUME = 100  # 0-100
+TTS_VOLUME = 200  # 0-200 (maximum volume)

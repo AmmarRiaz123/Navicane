@@ -303,6 +303,35 @@ import os
 LOG_FILE = os.path.join(os.getcwd(), 'smart_cane.log')
 ```
 
+### Speech Too Quiet
+
+```bash
+# Set system volume to maximum
+amixer set PCM 100%
+sudo alsactl store
+
+# Or use interactive mixer
+alsamixer
+# Press Up arrow to increase volume
+# Press Esc to exit
+sudo alsactl store
+
+# Test volume
+espeak "Volume test" -a 200
+
+# Check audio output device
+sudo raspi-config
+# System Options → Audio → Select correct output
+```
+
+**If using Bluetooth headphones:**
+```bash
+# Increase Bluetooth volume
+bluetoothctl
+# connect [MAC_ADDRESS]
+# Adjust volume on headphone device
+```
+
 ---
 
 ## 📞 Support

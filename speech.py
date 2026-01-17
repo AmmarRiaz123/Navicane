@@ -35,11 +35,13 @@ class SmartSpeech:
             # Mark as speaking
             self.speaking = True
             
-            # Speak via espeak
+            # Speak via espeak with maximum volume and amplitude
             subprocess.run(
                 ['espeak', text, 
-                 '-s', str(TTS_SPEED),
-                 '-a', str(TTS_VOLUME)],
+                 '-s', str(TTS_SPEED),      # Speed
+                 '-a', str(TTS_VOLUME),     # Amplitude (volume)
+                 '-g', '10',                # Gap between words (ms)
+                 '-p', '50'],               # Pitch (50 = default)
                 capture_output=True,
                 timeout=5
             )
@@ -86,11 +88,14 @@ class SmartSpeech:
     
     def announce_critical_object(self, object_name, distance):
         """
-        Announce object only if critically close
+        Announce object when critically close
         object_name: detected object class name
-        distance: distance in cm from ultrasonic sensor
+        distance: distance in cm from ultrasonic sensor (NOT camera)
+        
+        ALWAYS announces in critical zone (< 30cm)
+        Uses short cooldown in danger zone (30-60cm)
         """
-        # Only speak if in critical or danger zone (< 60cm)
+        # Validate distance
         if distance is None or distance >= 60:
             return False
         
@@ -110,11 +115,24 @@ class SmartSpeech:
         
         speech_text = speech_map.get(object_name, f'{object_name} ahead')
         
-        # Add urgency if very close
+        # CRITICAL zone (< 30cm): ALWAYS speak, force override
         if distance < 30:
             speech_text = f"Warning! {speech_text}"
+            # Force speak, bypass cooldown and overlap protection
+            with self.speech_lock:
+                # Stop any ongoing speech (urgent override)
+                if self.speaking:
+                    logger.info("Interrupting speech for CRITICAL warning")
+                
+                # Reset cooldown for critical warnings
+                self.rate_limiter.reset(speech_text)
+                
+                # Speak immediately
+                return self.speak(speech_text, force=True)
         
-        return self.speak(speech_text)
+        # DANGER zone (30-60cm): Use normal cooldown
+        else:
+            return self.speak(speech_text, force=False)
     
     def update_visible_objects(self, objects):
         """
