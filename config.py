@@ -96,7 +96,7 @@ SPEECH_COOLDOWN = 5.0  # Increased from 3.0 to 5.0 seconds (less repetition)
 
 # === LOOP TIMING ===
 ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz (unchanged - vibration needs fast response)
-CAMERA_LOOP_DELAY = 1.0  # Increased from 1.5 to 2.5 seconds (less frequent detection)
+CAMERA_LOOP_DELAY = 1.0  # 1 second between detections (reduced from 2.5s)
 
 # === LOGGING ===
 # Use current directory or home directory for logs
@@ -110,5 +110,5 @@ LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 # === TTS SETTINGS ===
 # Increase volume to max (200) and slightly increase speed (170) for responsiveness
 TTS_SPEED = 170 
-TTS_VOLUME = 200 
+TTS_VOLUME = 200
 

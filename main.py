@@ -200,16 +200,13 @@ class SmartCane:
     def _camera_speech_loop(self):
         """
         Lower-priority loop: camera detection + speech announcements
-        Runs slower (1.5s) to save CPU and avoid constant speech
-        Only activates when obstacles are nearby
-        Distance is ALWAYS from ultrasonic sensor, never estimated from camera
         """
         logger.info("Camera+Speech loop started")
         
         consecutive_errors = 0
         max_errors = 5
         last_detection_attempt = 0
-        detection_interval = 1.5  # Match test_full_integration.py timing
+        detection_interval = 1.0  # From config.CAMERA_LOOP_DELAY
         
         while self.running:
             try:
@@ -217,20 +214,15 @@ class SmartCane:
                 with self.distance_lock:
                     current_dist = self.current_distance
                 
-                # Always attempt detection if enough time has passed
                 current_time = time.time()
                 
-                # Only run detection if:
-                # 1. Obstacle is nearby (< CAMERA_TRIGGER_DISTANCE)
-                # 2. Enough time has passed since last detection
+                # Check conditions
                 if current_dist is None:
-                    logger.debug("No distance reading from ultrasonic")
-                    time.sleep(CAMERA_LOOP_DELAY)
+                    time.sleep(0.5)
                     continue
                 
                 if current_dist > CAMERA_TRIGGER_DISTANCE:
-                    logger.debug(f"Distance {current_dist}cm > trigger {CAMERA_TRIGGER_DISTANCE}cm, skipping")
-                    time.sleep(CAMERA_LOOP_DELAY)
+                    time.sleep(0.5)
                     continue
                 
                 if (current_time - last_detection_attempt) < detection_interval:
@@ -240,83 +232,71 @@ class SmartCane:
                 last_detection_attempt = current_time
                 
                 # Log detection attempt
-                logger.info(f"🎥 Running detection (obstacle at {current_dist}cm from ultrasonic)")
+                logger.info(f"🎥 Detection at {current_dist:.1f}cm")
                 
-                # Detect objects - FIX: Use self.camera
+                # Detect objects
                 detections = self.camera.detect_objects()
                 
                 if not detections:
-                    logger.info("📷 No objects detected by camera")
+                    logger.debug("📷 No objects")
+                    consecutive_errors = 0  # Reset on successful detection (even if nothing found)
                     time.sleep(0.1)
                     continue
                 
-                logger.info(f"📷 Camera detected {len(detections)} objects total")
+                logger.info(f"📷 {len(detections)} objects total")
                 
-                # Filter for center objects (objects directly ahead)
+                # Filter center objects
                 center_objects = [
                     (name, conf) for name, is_center, conf, box in detections
                     if is_center
                 ]
                 
                 if not center_objects:
-                    logger.info("📷 Objects detected but not in center (not ahead)")
+                    logger.debug("📷 Nothing in center")
+                    consecutive_errors = 0
                     time.sleep(0.1)
                     continue
                 
-                logger.info(f"📷 {len(center_objects)} objects in center (ahead)")
-                
-                # Get highest confidence detection
+                # Get best detection
                 best_detection = max(center_objects, key=lambda x: x[1])
                 object_name, confidence = best_detection
                 
-                logger.info(f"🎯 Best detection: {object_name} (confidence={confidence:.2f})")
-                logger.info(f"📏 Distance from ultrasonic: {current_dist}cm")
+                logger.info(f"🎯 {object_name} (conf={confidence:.2f}) at {current_dist:.1f}cm")
                 
-                # Announce based on ULTRASONIC distance - FIX: Use self.speech
+                # Announce if within trigger distance
                 if current_dist < SPEECH_TRIGGER_DISTANCE:
-                    if current_dist < 30:
-                        # CRITICAL: Force immediate announcement
-                        logger.warning(f"🚨 CRITICAL: {object_name} at {current_dist}cm")
-                    else:
-                        # DANGER: Normal announcement
-                        logger.info(f"⚠️  Danger: {object_name} at {current_dist}cm")
+                    # Try to announce (non-blocking)
+                    announced = self.speech.announce_critical_object(object_name, current_dist)
                     
-                    # Announce with ULTRASONIC distance
-                    speech_result = self.speech.announce_critical_object(object_name, current_dist)
-                    
-                    if speech_result:
-                        logger.info(f"🔊 Announced: {object_name}")
+                    if announced:
+                        logger.info(f"✅ Announced: {object_name}")
                     else:
-                        logger.debug(f"🔇 Speech skipped (cooldown or already speaking)")
-                else:
-                    logger.info(f"📢 Detected {object_name} but too far ({current_dist}cm >= {SPEECH_TRIGGER_DISTANCE}cm)")
+                        logger.debug(f"🔇 Skipped (cooldown or busy)")
                 
                 # Reset error counter on success
                 consecutive_errors = 0
                 
-                # Small sleep
+                # Brief sleep
                 time.sleep(0.1)
                 
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(f"❌ Camera loop error ({consecutive_errors}/{max_errors}): {e}")
-                import traceback
-                logger.error(traceback.format_exc())
+                logger.error(f"❌ Camera error ({consecutive_errors}/{max_errors}): {e}")
                 
-                # If too many consecutive errors, try to recover
+                # Don't block - just log and continue
                 if consecutive_errors >= max_errors:
-                    logger.critical("💥 Too many camera errors, attempting recovery...")
+                    logger.critical("💥 Too many errors, attempting recovery...")
                     try:
                         self.camera.cleanup()
-                        time.sleep(2)
+                        time.sleep(1)
                         self.camera = CameraManager()
-                        logger.info("✅ Camera recovery successful")
+                        logger.info("✅ Camera recovered")
                         consecutive_errors = 0
-                    except Exception as recovery_error:
-                        logger.critical(f"💀 Camera recovery failed: {recovery_error}")
-                        break
+                    except:
+                        logger.critical("💀 Recovery failed, continuing anyway...")
+                        consecutive_errors = 0  # Reset to keep trying
                 
-                time.sleep(2)
+                time.sleep(1)
         
         logger.info("Camera+Speech loop stopped")
     

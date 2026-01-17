@@ -35,7 +35,7 @@ class SmartSpeech:
             # Mark as speaking
             self.speaking = True
             
-            logger.info(f"Speaking: {text}")  # Log before speaking
+            logger.info(f"🔊 Starting to speak: {text}")
             
             # Speak via espeak with maximum volume and amplitude
             result = subprocess.run(
@@ -49,41 +49,46 @@ class SmartSpeech:
             )
             
             if result.returncode != 0:
-                logger.error(f"espeak failed: {result.stderr}")
+                logger.error(f"❌ espeak failed: {result.stderr}")
             else:
-                logger.info(f"✓ Spoke: {text}")
+                logger.info(f"✅ Finished speaking: {text}")
             
         except subprocess.TimeoutExpired:
-            logger.warning(f"Speech timeout: {text}")
+            logger.warning(f"⏱️ Speech timeout: {text}")
         except Exception as e:
-            logger.error(f"Speech error: {e}")
+            logger.error(f"❌ Speech error: {e}")
         finally:
             self.speaking = False
+            logger.debug(f"🔓 Speech lock released")
     
     def speak(self, text, force=False):
         """
         Speak text if not already speaking
         text: string to speak
         force: if True, bypass cooldown (for urgent messages)
+        Returns: True if speech was initiated, False otherwise
         """
+        # Don't speak over existing speech (unless forced)
+        if self.speaking and not force:
+            logger.debug(f"🔇 Already speaking, skipping: {text}")
+            return False
+        
+        # Check cooldown (unless forced)
+        if not force and not self.rate_limiter.can_trigger(text):
+            logger.debug(f"⏰ Cooldown active for: {text}")
+            return False
+        
+        # Acquire lock only for thread creation
         with self.speech_lock:
-            # Don't speak over existing speech
-            if self.speaking and not force:
-                logger.debug(f"Already speaking, skipping: {text}")
-                return False
-            
-            # Check cooldown (unless forced)
-            if not force and not self.rate_limiter.can_trigger(text):
-                logger.debug(f"Cooldown active for: {text}")
-                return False
-            
-            # Speak in background thread
+            # Speak in background thread (non-blocking)
             thread = threading.Thread(
                 target=self._speak_async,
                 args=(text,),
-                daemon=True
+                daemon=True,
+                name=f"Speech-{text[:20]}"
             )
             thread.start()
+            logger.debug(f"🎤 Speech thread started for: {text}")
             
             return True
     
@@ -96,18 +101,15 @@ class SmartSpeech:
         Announce object when close
         object_name: detected object class name
         distance: distance in cm from ultrasonic sensor
-        
-        ALWAYS announces in critical zone (< 30cm)
-        Uses short cooldown in danger zone (30-60cm)
         """
         # Validate distance
         if distance is None or distance >= SPEECH_TRIGGER_DISTANCE:
-            logger.debug(f"Distance {distance}cm exceeds trigger threshold {SPEECH_TRIGGER_DISTANCE}cm")
+            logger.debug(f"📏 Distance {distance}cm exceeds trigger threshold {SPEECH_TRIGGER_DISTANCE}cm")
             return False
         
         # Map object names to natural speech (EXPANDED)
         speech_map = {
-            'person': 'person ahead',
+            'person': 'person',
             'chair': 'chair',
             'car': 'car',
             'bicycle': 'bicycle',
@@ -133,20 +135,22 @@ class SmartSpeech:
             'bench': 'bench'
         }
         
-        speech_text = speech_map.get(object_name, f'{object_name}')
+        speech_text = speech_map.get(object_name, object_name)
         
         # CRITICAL zone (< 30cm): ALWAYS speak, force override
         if distance < 30:
-            speech_text = f"Warning! {speech_text}"
-            logger.warning(f"CRITICAL: {speech_text} at {distance}cm")
+            speech_text = f"Warning {speech_text}"  # Shorter warning
+            logger.warning(f"🚨 CRITICAL: {speech_text} at {distance:.1f}cm")
+            
+            # Force speak immediately, don't wait
             with self.speech_lock:
-                if self.speaking:
-                    logger.info("Interrupting speech for CRITICAL warning")
+                # Reset cooldown for critical warnings
                 self.rate_limiter.reset(speech_text)
-                return self.speak(speech_text, force=True)
+            
+            return self.speak(speech_text, force=True)
         
         # Normal announcement
-        logger.info(f"Announcing: {speech_text} at {distance}cm")
+        logger.info(f"📢 Announcing: {speech_text} at {distance:.1f}cm")
         return self.speak(speech_text, force=False)
     
     def update_visible_objects(self, objects):
