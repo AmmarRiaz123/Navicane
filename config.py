@@ -86,12 +86,11 @@ SPEECH_TRIGGER_DISTANCE = 100  # Increased from 60cm to 100cm (speaks from farth
 # Distance at which to run camera detection (cm)
 CAMERA_TRIGGER_DISTANCE = 200  # Detects from 2 meters
 
-# Cooldown between same object announcements (seconds)
-SPEECH_COOLDOWN = 3.0  # Increased from 2.0 to 3.0 seconds (prevents spam)
+
 
 # === LOOP TIMING ===
-ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz
-CAMERA_LOOP_DELAY = 1.5  # Reduced from 2.0 to 1.5 seconds (more frequent detection)
+ULTRASONIC_LOOP_DELAY = 0.01  # 10ms = 100Hz
+CAMERA_LOOP_DELAY = 0.2  # Was 1.5. Try to run as fast as the Pi allows.
 
 # === LOGGING ===
 # Use current directory or home directory for logs
@@ -103,5 +102,10 @@ os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR
 
 # === TTS SETTINGS ===
-TTS_SPEED = 150  # Words per minute
-TTS_VOLUME = 200  # 0-200 (maximum volume)
+# Increase volume to max (200) and slightly increase speed (170) for responsiveness
+TTS_SPEED = 170 
+TTS_VOLUME = 200 
+
+# REDUCE the cooldown so it can speak more frequently
+SPEECH_COOLDOWN = 1.0  # Was 3.0, now it can speak every second if needed
+
