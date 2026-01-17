@@ -194,11 +194,15 @@ class CameraManager:
         self.temp_dir = tempfile.mkdtemp(prefix='smart_cane_')
         logger.info(f"Using temp directory: {self.temp_dir}")
         
-        # Test rpicam availability
-        self.test_camera()
+        # Test rpicam availability (lenient mode - don't fail on error)
+        try:
+            self.test_camera()
+        except Exception as e:
+            logger.warning(f"⚠️ Camera test failed: {e}")
+            logger.warning("⚠️ Continuing anyway - camera will be tested on first capture")
     
     def test_camera(self):
-        """Test if rpicam-still works"""
+        """Test if rpicam-still works (lenient - just log, don't raise)"""
         try:
             logger.info("Testing rpicam-still availability...")
             result = subprocess.run(
@@ -208,15 +212,19 @@ class CameraManager:
             )
             if result.returncode == 0:
                 logger.info("✓ rpicam-still is available")
+                return True
             else:
-                logger.error("✗ rpicam-still failed")
-                raise Exception("rpicam-still not working")
+                logger.warning(f"⚠️ rpicam-still returned non-zero: {result.returncode}")
+                return False
         except subprocess.TimeoutExpired:
-            logger.error("✗ rpicam-still timed out")
-            raise
+            logger.warning("⚠️ rpicam-still timed out during test")
+            return False
         except FileNotFoundError:
-            logger.error("✗ rpicam-still not found - install libcamera-apps")
-            raise
+            logger.warning("⚠️ rpicam-still not found in PATH")
+            return False
+        except Exception as e:
+            logger.warning(f"⚠️ Camera test error: {e}")
+            return False
     
     def capture_frame(self, timeout=5):
         """

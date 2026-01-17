@@ -52,19 +52,25 @@ class SmartCane:
             self.components_ready['vibration'] = True
             logger.info("✓ Vibration controller ready")
             
-            # Initialize camera (may take longer)
-            logger.info("Initializing camera system...")
-            self.camera = CameraManager()
-            self.components_ready['camera'] = True
-            logger.info("✓ Camera system ready")
-            
             # Initialize speech
             logger.info("Initializing speech system...")
             self.speech = SmartSpeech()
             self.components_ready['speech'] = True
             logger.info("✓ Speech system ready")
             
-            logger.info("All components initialized successfully")
+            # Initialize camera (may take longer - don't fail if not ready)
+            logger.info("Initializing camera system...")
+            try:
+                self.camera = CameraManager()
+                self.components_ready['camera'] = True
+                logger.info("✓ Camera system ready")
+            except Exception as e:
+                logger.error(f"⚠️ Camera initialization failed: {e}")
+                logger.warning("⚠️ System will start without camera - detection disabled")
+                self.camera = None
+                self.components_ready['camera'] = False
+            
+            logger.info(f"Components ready: {self.components_ready}")
             
         except Exception as e:
             logger.error(f"Initialization failed: {e}")
@@ -203,10 +209,16 @@ class SmartCane:
         """
         logger.info("Camera+Speech loop started")
         
+        # If camera not available, just log and exit thread
+        if not self.components_ready['camera'] or self.camera is None:
+            logger.warning("⚠️ Camera not available - detection disabled")
+            logger.info("ℹ️ System will work with ultrasonic + vibration only")
+            return
+        
         consecutive_errors = 0
         max_errors = 5
         last_detection_attempt = 0
-        detection_interval = 1.0  # From config.CAMERA_LOOP_DELAY
+        detection_interval = 1.0
         
         while self.running:
             try:

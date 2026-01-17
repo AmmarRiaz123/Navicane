@@ -58,6 +58,10 @@ RPICAM_CAPTURE_INTERVAL = 2.0  # 2 seconds between frames
 # Camera timeout for rpicam-still (seconds)
 RPICAM_TIMEOUT = 5
 
+# Camera retry settings (for service startup)
+CAMERA_MAX_RETRY_ATTEMPTS = 5  # Max attempts to capture first frame
+CAMERA_RETRY_DELAY = 2  # Seconds between retry attempts
+
 # === OBJECT DETECTION ===
 # Model paths - use dynamic home directory
 MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
