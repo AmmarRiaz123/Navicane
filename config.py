@@ -64,7 +64,9 @@ MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
 PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
-CONFIDENCE_THRESHOLD = 0.3
+# Lower = more detections (but more false positives)
+# Higher = fewer detections (but more accurate)
+CONFIDENCE_THRESHOLD = 0.6  # Increased from 0.3 to 0.6 for better accuracy
 
 # Objects to detect and announce
 PRIORITY_OBJECTS = [
