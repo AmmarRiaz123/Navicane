@@ -239,8 +239,8 @@ class SmartCane:
                 # Log detection attempt
                 logger.info(f"🎥 Running detection (obstacle at {current_dist}cm from ultrasonic)")
                 
-                # Detect objects
-                detections = camera.detect_objects()
+                # Detect objects - FIX: Use self.camera
+                detections = self.camera.detect_objects()
                 
                 if not detections:
                     logger.info("📷 No objects detected by camera")
@@ -269,7 +269,7 @@ class SmartCane:
                 logger.info(f"🎯 Best detection: {object_name} (confidence={confidence:.2f})")
                 logger.info(f"📏 Distance from ultrasonic: {current_dist}cm")
                 
-                # Announce based on ULTRASONIC distance
+                # Announce based on ULTRASONIC distance - FIX: Use self.speech
                 if current_dist < SPEECH_TRIGGER_DISTANCE:
                     if current_dist < 30:
                         # CRITICAL: Force immediate announcement
