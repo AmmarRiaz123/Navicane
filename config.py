@@ -64,32 +64,34 @@ MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
 PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
-# Lower = more detections (but more false positives)
-# Higher = fewer detections (but more accurate)
-CONFIDENCE_THRESHOLD = 0.5  # Increased from 0.3 to 0.6 for better accuracy
+CONFIDENCE_THRESHOLD = 0.5  # Balanced accuracy vs detection rate
 
-# Objects to detect and announce
+# Objects to detect and announce (EXPANDED LIST)
 PRIORITY_OBJECTS = [
     'person', 'chair', 'car', 'bicycle', 'motorbike',
-    'bus', 'train', 'bottle', 'diningtable', 'pottedplant'
+    'bus', 'train', 'bottle', 'diningtable', 'pottedplant',
+    'dog', 'cat', 'bird', 'backpack', 'handbag', 'suitcase',
+    'laptop', 'keyboard', 'cell phone', 'book', 'clock', 'vase',
+    'scissors', 'teddy bear', 'sofa', 'bed', 'toilet', 'tv',
+    'remote', 'bench', 'potted plant', 'dining table'
 ]
 
-# Center region for "ahead" detection
-CENTER_REGION_START = 0.3
-CENTER_REGION_END = 0.7
+# Center region for "ahead" detection (WIDER WINDOW)
+CENTER_REGION_START = 0.2  # Increased from 0.3 (wider detection area)
+CENTER_REGION_END = 0.8    # Increased from 0.7 (wider detection area)
 
 # Distance at which to trigger speech announcements (cm)
-SPEECH_TRIGGER_DISTANCE = 60  # Only announce objects when < 60cm
+SPEECH_TRIGGER_DISTANCE = 100  # Increased from 60cm to 100cm (speaks from farther)
 
 # Distance at which to run camera detection (cm)
-CAMERA_TRIGGER_DISTANCE = 200  # Increased from 100cm to 200cm (detects from farther)
+CAMERA_TRIGGER_DISTANCE = 200  # Detects from 2 meters
 
 # Cooldown between same object announcements (seconds)
-SPEECH_COOLDOWN = 2.0  # Reduced from 5.0 to 2.0 seconds
+SPEECH_COOLDOWN = 3.0  # Increased from 2.0 to 3.0 seconds (prevents spam)
 
 # === LOOP TIMING ===
 ULTRASONIC_LOOP_DELAY = 0.05  # 50ms = 20Hz
-CAMERA_LOOP_DELAY = 2.0  # 2 seconds between captures (adjusted for rpicam)
+CAMERA_LOOP_DELAY = 1.5  # Reduced from 2.0 to 1.5 seconds (more frequent detection)
 
 # === LOGGING ===
 # Use current directory or home directory for logs

@@ -280,14 +280,25 @@ class CameraManager:
         frame = self.capture_frame()
         
         if frame is None:
+            logger.warning("No frame captured")
             return []
         
+        logger.debug(f"Frame captured: {frame.shape}")
+        
         detections = self.detector.detect(frame)
+        
+        if not detections:
+            logger.debug("No detections from model")
+            return []
+        
+        logger.info(f"Model returned {len(detections)} raw detections")
         
         # Determine if objects are in center region
         frame_width = frame.shape[1]
         center_start = frame_width * CENTER_REGION_START
         center_end = frame_width * CENTER_REGION_END
+        
+        logger.debug(f"Center region: {center_start:.0f} - {center_end:.0f} (out of {frame_width})")
         
         results = []
         for class_name, confidence, box in detections:
@@ -297,7 +308,7 @@ class CameraManager:
             is_center = center_start <= obj_center_x <= center_end
             
             results.append((class_name, is_center, confidence, box))
-            logger.debug(f"Detected: {class_name} ({confidence:.2f}) - Center: {is_center}")
+            logger.info(f"Detected: {class_name} (conf={confidence:.2f}, center={is_center}, x={obj_center_x:.0f})")
         
         return results
     

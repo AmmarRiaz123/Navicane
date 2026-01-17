@@ -7,7 +7,7 @@ Only speaks when obstacle is critically close
 import subprocess
 import time
 import threading
-from config import TTS_SPEED, TTS_VOLUME, SPEECH_COOLDOWN
+from config import TTS_SPEED, TTS_VOLUME, SPEECH_COOLDOWN, SPEECH_TRIGGER_DISTANCE
 from utils import setup_logger, RateLimiter
 
 logger = setup_logger('speech')
@@ -35,18 +35,23 @@ class SmartSpeech:
             # Mark as speaking
             self.speaking = True
             
+            logger.info(f"Speaking: {text}")  # Log before speaking
+            
             # Speak via espeak with maximum volume and amplitude
-            subprocess.run(
+            result = subprocess.run(
                 ['espeak', text, 
                  '-s', str(TTS_SPEED),      # Speed
                  '-a', str(TTS_VOLUME),     # Amplitude (volume)
                  '-g', '10',                # Gap between words (ms)
                  '-p', '50'],               # Pitch (50 = default)
                 capture_output=True,
-                timeout=5
+                timeout=10  # Increased timeout from 5 to 10 seconds
             )
             
-            logger.info(f"Spoke: {text}")
+            if result.returncode != 0:
+                logger.error(f"espeak failed: {result.stderr}")
+            else:
+                logger.info(f"✓ Spoke: {text}")
             
         except subprocess.TimeoutExpired:
             logger.warning(f"Speech timeout: {text}")
@@ -88,51 +93,61 @@ class SmartSpeech:
     
     def announce_critical_object(self, object_name, distance):
         """
-        Announce object when critically close
+        Announce object when close
         object_name: detected object class name
-        distance: distance in cm from ultrasonic sensor (NOT camera)
+        distance: distance in cm from ultrasonic sensor
         
         ALWAYS announces in critical zone (< 30cm)
         Uses short cooldown in danger zone (30-60cm)
         """
         # Validate distance
-        if distance is None or distance >= 60:
+        if distance is None or distance >= SPEECH_TRIGGER_DISTANCE:
+            logger.debug(f"Distance {distance}cm exceeds trigger threshold {SPEECH_TRIGGER_DISTANCE}cm")
             return False
         
-        # Map object names to natural speech
+        # Map object names to natural speech (EXPANDED)
         speech_map = {
             'person': 'person ahead',
-            'chair': 'chair ahead',
-            'car': 'car ahead',
-            'bicycle': 'bicycle ahead',
-            'motorbike': 'motorcycle ahead',
-            'bus': 'bus ahead',
-            'train': 'train ahead',
+            'chair': 'chair',
+            'car': 'car',
+            'bicycle': 'bicycle',
+            'motorbike': 'motorcycle',
+            'bus': 'bus',
+            'train': 'train',
             'bottle': 'bottle',
-            'diningtable': 'table ahead',
-            'pottedplant': 'plant ahead'
+            'diningtable': 'table',
+            'dining table': 'table',
+            'pottedplant': 'plant',
+            'potted plant': 'plant',
+            'dog': 'dog',
+            'cat': 'cat',
+            'backpack': 'backpack',
+            'handbag': 'bag',
+            'suitcase': 'suitcase',
+            'laptop': 'laptop',
+            'cell phone': 'phone',
+            'book': 'book',
+            'sofa': 'sofa',
+            'bed': 'bed',
+            'tv': 'television',
+            'bench': 'bench'
         }
         
-        speech_text = speech_map.get(object_name, f'{object_name} ahead')
+        speech_text = speech_map.get(object_name, f'{object_name}')
         
         # CRITICAL zone (< 30cm): ALWAYS speak, force override
         if distance < 30:
             speech_text = f"Warning! {speech_text}"
-            # Force speak, bypass cooldown and overlap protection
+            logger.warning(f"CRITICAL: {speech_text} at {distance}cm")
             with self.speech_lock:
-                # Stop any ongoing speech (urgent override)
                 if self.speaking:
                     logger.info("Interrupting speech for CRITICAL warning")
-                
-                # Reset cooldown for critical warnings
                 self.rate_limiter.reset(speech_text)
-                
-                # Speak immediately
                 return self.speak(speech_text, force=True)
         
-        # DANGER zone (30-60cm): Use normal cooldown
-        else:
-            return self.speak(speech_text, force=False)
+        # Normal announcement
+        logger.info(f"Announcing: {speech_text} at {distance}cm")
+        return self.speak(speech_text, force=False)
     
     def update_visible_objects(self, objects):
         """
