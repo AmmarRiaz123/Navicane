@@ -3,20 +3,37 @@
 # Initialize audio system for smart cane service
 # This ensures Bluetooth and PulseAudio are ready
 
-echo "Initializing audio system for smart-cane..."
+echo "🔊 Initializing audio system for smart-cane..."
 
-# Wait for user session
-USER_ID=$(id -u pi1_)
-echo "Waiting for user session (UID: $USER_ID)..."
-while [ ! -d "/run/user/$USER_ID" ]; do
-    sleep 1
-done
-echo "✓ User session ready"
+# Get user info
+USER_NAME=$(whoami)
+USER_ID=$(id -u)
 
-# Wait for PulseAudio
-echo "Waiting for PulseAudio..."
-PULSE_SERVER="/run/user/$USER_ID/pulse/native"
+echo "👤 User: $USER_NAME (UID: $USER_ID)"
+
+# Wait for user session (max 30 seconds)
+echo "⏳ Waiting for user session..."
 timeout=30
+count=0
+while [ ! -d "/run/user/$USER_ID" ] && [ $count -lt $timeout ]; do
+    sleep 1
+    count=$((count + 1))
+done
+
+if [ ! -d "/run/user/$USER_ID" ]; then
+    echo "❌ User session timeout - continuing anyway"
+else
+    echo "✅ User session ready"
+fi
+
+# Set audio environment
+export XDG_RUNTIME_DIR="/run/user/$USER_ID"
+export PULSE_RUNTIME_PATH="/run/user/$USER_ID/pulse"
+
+# Wait for PulseAudio (max 20 seconds)
+echo "⏳ Waiting for PulseAudio..."
+PULSE_SERVER="/run/user/$USER_ID/pulse/native"
+timeout=20
 count=0
 while [ ! -S "$PULSE_SERVER" ] && [ $count -lt $timeout ]; do
     sleep 1
@@ -24,18 +41,18 @@ while [ ! -S "$PULSE_SERVER" ] && [ $count -lt $timeout ]; do
 done
 
 if [ -S "$PULSE_SERVER" ]; then
-    echo "✓ PulseAudio ready"
+    echo "✅ PulseAudio ready"
+    
+    # Set volume
+    pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null && echo "🔊 Volume set to 100%" || echo "⚠️ Could not set volume"
+    
+    # Test audio
+    espeak "Audio system ready" -a 200 2>/dev/null && echo "✅ Audio test successful" || echo "⚠️ Audio test failed"
 else
-    echo "⚠ PulseAudio socket not found, continuing anyway..."
+    echo "⚠️ PulseAudio not ready - audio may not work"
 fi
 
-# Set audio volume to maximum
-export XDG_RUNTIME_DIR="/run/user/$USER_ID"
-export PULSE_RUNTIME_PATH="/run/user/$USER_ID/pulse"
+echo "🏁 Audio initialization complete - starting main program"
 
-pactl set-sink-volume @DEFAULT_SINK@ 100% 2>/dev/null || echo "⚠ Could not set volume"
-
-# Test audio
-espeak "Audio system ready" -a 200 2>/dev/null && echo "✓ Audio test successful" || echo "⚠ Audio test failed"
-
-echo "Audio initialization complete"
+# Exit successfully to allow service to continue
+exit 0

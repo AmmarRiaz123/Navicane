@@ -14,7 +14,7 @@ SupplementaryGroups=video audio gpio bluetooth pulse-access
 
 WorkingDirectory=/home/pi1_/Navicane
 
-# Environment variables for audio and hardware access
+# Environment variables
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONIOENCODING=utf-8"
@@ -22,24 +22,24 @@ Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
 Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
 
-# Initialize audio system first (with timeout)
-ExecStartPre=/bin/bash -c '/home/pi1_/Navicane/init_audio.sh || exit 0'
+# Simple delay for audio system
+ExecStartPre=/bin/sleep 15
 
 # Start main program
 ExecStart=/usr/bin/python3 -u /home/pi1_/Navicane/main.py
 
-# Don't restart too quickly if it fails
+# Restart on failure
 Restart=on-failure
 RestartSec=15
 
 StandardOutput=append:/home/pi1_/Navicane/smart_cane.log
 StandardError=append:/home/pi1_/Navicane/smart_cane.log
 
-# Security settings (relaxed for hardware access)
+# Security settings
 NoNewPrivileges=true
 PrivateTmp=true
 
-# Allow access to devices
+# Device access
 DeviceAllow=/dev/gpiomem rw
 DeviceAllow=/dev/video0 rw
 DeviceAllow=/dev/snd rw
