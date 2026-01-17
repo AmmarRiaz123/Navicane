@@ -64,7 +64,7 @@ MODEL_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.weights')
 PROTOTXT_PATH = os.path.join(USER_HOME, 'models/yolov4-tiny.cfg')
 
 # Detection confidence threshold
-CONFIDENCE_THRESHOLD = 0.5  # Balanced accuracy vs detection rate
+CONFIDENCE_THRESHOLD = 0.3  # Balanced accuracy vs detection rate
 
 # Objects to detect and announce (EXPANDED LIST)
 PRIORITY_OBJECTS = [
@@ -81,7 +81,7 @@ CENTER_REGION_START = 0.2  # Increased from 0.3 (wider detection area)
 CENTER_REGION_END = 0.8    # Increased from 0.7 (wider detection area)
 
 # Distance at which to trigger speech announcements (cm)
-SPEECH_TRIGGER_DISTANCE = 100  # Increased from 60cm to 100cm (speaks from farther)
+SPEECH_TRIGGER_DISTANCE = 400 # Increased from 60cm to 100cm (speaks from farther)
 
 # Distance at which to run camera detection (cm)
 CAMERA_TRIGGER_DISTANCE = 200  # Detects from 2 meters
